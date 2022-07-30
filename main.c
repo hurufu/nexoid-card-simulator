@@ -72,10 +72,8 @@ int main() {
             adjust_file_params(files[i]);
     }
 
-    if (pipe(g_event_pipe) != 0)
+    if (pipe2(g_event_pipe, O_NONBLOCK | O_CLOEXEC) != 0)
         LOGF("Can't initiate internal event pipe");
-    for (size_t i = 0; i < elementsof(g_event_pipe); i++)
-        set_fd_flag(g_event_pipe[i], O_NONBLOCK);
 
     {
         static nfcHostCardEmulationCallback_t s_cb = {
