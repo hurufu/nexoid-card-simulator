@@ -28,19 +28,19 @@ static const char* mode_tostring(const unsigned char mode) {
     return NULL;
 }
 
-void on_data_received(unsigned char* const data, const unsigned int length) {
+static void on_data_received(unsigned char* const data, const unsigned int length) {
     LOGD("Data received");
     if (fwrite(data, 1, length, stdout) != length)
         LOGW("Can't write received NFC data to stdout");
 }
 
-void on_host_card_emulation_activated(const unsigned char mode) {
+static void on_host_card_emulation_activated(const unsigned char mode) {
     LOGD("Card activated");
     if (write(g_event_pipe[1], &mode, 1) != 1)
         LOGW("Can't write activation to the event pipe");
 }
 
-void on_host_card_emulation_deactivated(void) {
+static void on_host_card_emulation_deactivated(void) {
     LOGD("Card deactivated");
     close(g_event_pipe[1]);
 }
