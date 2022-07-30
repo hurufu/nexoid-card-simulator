@@ -91,7 +91,8 @@ int main() {
         { .fd = g_event_pipe[0], .events = POLLRDNORM },
         { .fd = STDIN_FILENO, .events = POLLRDNORM }
     };
-    while (poll(pf, elementsof(pf), 5 * 1000) > 0) {
+    int pf_size = elementsof(pf);
+    while (poll(pf, pf_size, 5 * 1000) > 0) {
         if (pf[0].revents & POLLRDNORM) {
             unsigned char event[1];
             if (read(pf[0].fd, event, sizeof(event)) != sizeof(event))
@@ -108,7 +109,7 @@ int main() {
             break;
         }
         if (pf[1].revents & POLLRDNORM) {
-            LOGD("Read");
+            LOGD("Read event on response pipe");
             unsigned char buf[255];
             const ssize_t s = read(pf[1].fd, buf, sizeof(buf));
             if (s < 0)
@@ -118,12 +119,13 @@ int main() {
                 LOGX("Can't send NFC command %d", rs);
         }
         if (pf[1].revents & POLLHUP) {
-            LOGD("Close");
+            LOGD("Response pipe is closed");
             close(pf[1].fd);
-            break;
+            pf_size = 1;
+            pf[1].revents = 0;
         }
         if (pf[1].revents & POLLNVAL) {
-            LOGD("Inval");
+            LOGD("Error in response pipe");
             break;
         }
     }
