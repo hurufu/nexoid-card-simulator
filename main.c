@@ -74,6 +74,8 @@ int main() {
 
     if (pipe(g_event_pipe) != 0)
         LOGF("Can't initiate internal event pipe");
+    for (size_t i = 0; i < elementsof(g_event_pipe); i++)
+        set_fd_flag(g_event_pipe[i], O_NONBLOCK);
 
     {
         static nfcHostCardEmulationCallback_t s_cb = {
@@ -97,7 +99,10 @@ int main() {
             unsigned char event[1];
             if (read(pf[0].fd, event, sizeof(event)) != sizeof(event))
                 LOGF("Can't read event");
-            LOGD("Reader type is %s", mode_tostring(event[0]));
+            if (event[0] != MODE_LISTEN_A) {
+                LOGD("Unsupported reader type %s", mode_tostring(event[0]));
+                break;
+            }
         }
         if (pf[0].revents & POLLHUP) {
             LOGD("Event pipe closed");
@@ -109,7 +114,7 @@ int main() {
             break;
         }
         if (pf[1].revents & POLLRDNORM) {
-            LOGD("Read event on response pipe");
+            LOGD("Sending response");
             unsigned char buf[255];
             const ssize_t s = read(pf[1].fd, buf, sizeof(buf));
             if (s < 0)
