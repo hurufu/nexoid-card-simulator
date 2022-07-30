@@ -76,21 +76,18 @@ int main() {
 
     {
         FILE* files[] = { stdin, stdout, stderr };
-        for (size_t i = 0; i < elementsof(files); i++) {
+        for (size_t i = 0; i < elementsof(files); i++)
             adjust_file_params(files[i]);
-        }
     }
 
     if (nfcManager_doInitialize() != 0)
-        LOGX("NFC initialization failed");
+        LOGX("NFC manager initialization failed");
     nfcHce_registerHceCallback(&s_cb);
     nfcManager_enableDiscovery(0x00, 0, 1, 0);
 
-    LOGI("Waiting for reader...");
+    LOGI("Waiting for a reader...");
     pthread_cond_wait(&g_card_activated, &g_mutex);
     for (;;) {
-        pthread_cond_wait(&g_data_received, &g_mutex);
-        LOGD("Polling...");
         struct pollfd pf[] = {
             { .fd = STDIN_FILENO, .events = POLLRDNORM }
         };
