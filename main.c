@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <poll.h>
 #include <err.h>
+#include <fcntl.h>
 
 #define LOG_(Level, Fmt, ...) fprintf(stderr, "main: " Level " %s:%d\t" Fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__)
 #define LOGD(Fmt, ...) LOG_("D", Fmt, ##__VA_ARGS__)
@@ -16,10 +17,7 @@
 #define LOGF(Fmt, ...) err(EXIT_FAILURE, "E %s:%d\t" Fmt, __FILE__, __LINE__, ##__VA_ARGS__);
 #define elementsof(Array) (sizeof(Array)/sizeof((Array)[0]))
 
-pthread_mutex_t g_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t g_card_activated = PTHREAD_COND_INITIALIZER;
-pthread_cond_t g_data_received = PTHREAD_COND_INITIALIZER;
-pthread_cond_t g_card_deactivated = PTHREAD_COND_INITIALIZER;
+int g_event_pipe[2];
 
 static const char* mode_tostring(const unsigned char mode) {
     switch (mode) {
@@ -33,18 +31,18 @@ static const char* mode_tostring(const unsigned char mode) {
 void on_data_received(unsigned char* const data, const unsigned int length) {
     LOGD("Data received");
     if (fwrite(data, 1, length, stdout) != length)
-        LOGW("Can't write() received NFC data to stdout");
-    pthread_cond_signal(&g_data_received);
+        LOGW("Can't write received NFC data to stdout");
 }
 
 void on_host_card_emulation_activated(const unsigned char mode) {
-    LOGD("Card activated. Remote reader type is %s", mode_tostring(mode));
-    pthread_cond_signal(&g_card_activated);
+    LOGD("Card activated");
+    if (write(g_event_pipe[1], &mode, 1) != 1)
+        LOGW("Can't write activation to the event pipe");
 }
 
 void on_host_card_emulation_deactivated(void) {
     LOGD("Card deactivated");
-    pthread_cond_signal(&g_card_deactivated);
+    close(g_event_pipe[1]);
 }
 
 static void set_fd_flag(const int fd, const int flag) {
@@ -68,59 +66,67 @@ static void adjust_file_params(FILE* const f) {
 }
 
 int main() {
-    static nfcHostCardEmulationCallback_t s_cb = {
-        .onDataReceived = on_data_received,
-        .onHostCardEmulationActivated = on_host_card_emulation_activated,
-        .onHostCardEmulationDeactivated = on_host_card_emulation_deactivated
-    };
-
     {
         FILE* files[] = { stdin, stdout, stderr };
         for (size_t i = 0; i < elementsof(files); i++)
             adjust_file_params(files[i]);
     }
 
-    if (nfcManager_doInitialize() != 0)
-        LOGX("NFC manager initialization failed");
-    nfcHce_registerHceCallback(&s_cb);
-    nfcManager_enableDiscovery(0x00, 0, 1, 0);
+    if (pipe(g_event_pipe) != 0)
+        LOGF("Can't initiate internal event pipe");
 
-    LOGI("Waiting for a reader...");
-    pthread_cond_wait(&g_card_activated, &g_mutex);
-    for (;;) {
-        struct pollfd pf[] = {
-            { .fd = STDIN_FILENO, .events = POLLRDNORM }
+    {
+        static nfcHostCardEmulationCallback_t s_cb = {
+            .onDataReceived = on_data_received,
+            .onHostCardEmulationActivated = on_host_card_emulation_activated,
+            .onHostCardEmulationDeactivated = on_host_card_emulation_deactivated
         };
-        const int poll_res = poll(pf, elementsof(pf), 5 * 1000);
-        if (poll_res == -1)
-            LOGF("poll() failed");
-        if (poll_res == 0) {
-            LOGI("Timeout");
+        if (nfcManager_doInitialize() != 0)
+            LOGX("NFC manager initialization failed");
+        nfcHce_registerHceCallback(&s_cb);
+        nfcManager_enableDiscovery(0x00, 0, 1, 0);
+    }
+
+    struct pollfd pf[] = {
+        { .fd = g_event_pipe[0], .events = POLLRDNORM },
+        { .fd = STDIN_FILENO, .events = POLLRDNORM }
+    };
+    while (poll(pf, elementsof(pf), 5 * 1000) > 0) {
+        if (pf[0].revents & POLLRDNORM) {
+            unsigned char event[1];
+            if (read(pf[0].fd, event, sizeof(event)) != sizeof(event))
+                LOGF("Can't read event");
+            LOGD("Reader type is %s", mode_tostring(event[0]));
+        }
+        if (pf[0].revents & POLLHUP) {
+            LOGD("Event pipe closed");
+            close(pf[0].fd);
             break;
         }
-        for (size_t i = 0; i < elementsof(pf); i++) {
-            if (pf[i].revents & POLLRDNORM) {
-                LOGD("Read");
-                unsigned char buf[255];
-                const ssize_t s = read(pf[i].fd, buf, sizeof(buf));
-                if (s < 0)
-                    LOGF("Can't read from fd %d", pf[i].fd);
-                const int rs = nfcHce_sendCommand(buf, s);
-                if (rs != 0)
-                    LOGX("Can't send NFC command %d", rs);
-            }
-            if (pf[i].revents & POLLHUP) {
-                LOGD("Close");
-                close(pf[i].fd);
-            }
-            if (pf[i].revents & POLLNVAL) {
-                LOGD("Inval...");
-                pthread_cond_wait(&g_card_deactivated, &g_mutex);
-                goto bail;
-            }
+        if (pf[0].revents & POLLNVAL) {
+            LOGD("Error in event pipe");
+            break;
+        }
+        if (pf[1].revents & POLLRDNORM) {
+            LOGD("Read");
+            unsigned char buf[255];
+            const ssize_t s = read(pf[1].fd, buf, sizeof(buf));
+            if (s < 0)
+                LOGF("Can't read from fd %d", pf[1].fd);
+            const int rs = nfcHce_sendCommand(buf, s);
+            if (rs != 0)
+                LOGX("Can't send NFC command %d", rs);
+        }
+        if (pf[1].revents & POLLHUP) {
+            LOGD("Close");
+            close(pf[1].fd);
+            break;
+        }
+        if (pf[1].revents & POLLNVAL) {
+            LOGD("Inval");
+            break;
         }
     }
-bail:
 
     nfcHce_deregisterHceCallback();
     if (nfcManager_doDeinitialize() != 0)
