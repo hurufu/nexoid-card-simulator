@@ -4,7 +4,7 @@ LDLIBS    = $(shell pkg-config --libs libnfc-nci)
 CFLAGS   := -Wall -Wextra -ggdb3 -Og -pthread
 
 hexdump: main
-	for a in '\x6A\x82' '\x90\x00' '\x90\x00'; do sleep 3; printf "$$a"; done | ./$< | od -Ad -tx1z
+	while sleep 3; do printf '\x6A\x82'; done | ./$< 5000 5 | od -Ad -tx1z
 clean: F := main card
 clean:
 	-$(if $(strip $(wildcard $F)),$(RM) -- $F,)
