@@ -153,9 +153,8 @@ int main(int ac, char** av) {
     if (pipe2(g_event_pipe, O_NONBLOCK | O_CLOEXEC) != 0)
         LOGF("Can't initiate internal event pipe");
 
-    int nfc_rc;
-    if ((nfc_rc = nfcManager_doInitialize()) != 0)
-        LOGFX("NFC manager initialization failed: %#x", nfc_rc);
+    if (nfcManager_doInitialize() != 0)
+        LOGFX("NFC manager initialization failed");
     static nfcHostCardEmulationCallback_t s_cb = {
         .onDataReceived = on_data_received,
         .onHostCardEmulationActivated = on_host_card_emulation_activated,
@@ -168,7 +167,7 @@ int main(int ac, char** av) {
 
     nfcManager_disableDiscovery();
     nfcHce_deregisterHceCallback();
-    if ((nfc_rc = nfcManager_doDeinitialize()) != 0)
-        LOGFX("Error during NFC deinitialization: %#x", nfc_rc);
+    if (nfcManager_doDeinitialize() != 0)
+        LOGFX("Error during NFC deinitialization");
     return EXIT_SUCCESS;
 }
