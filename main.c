@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <linux_nfc_api.h>
 #include <stdbool.h>
 #include <unistd.h>
