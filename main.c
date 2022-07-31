@@ -6,16 +6,24 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <poll.h>
+#include <errno.h>
 #include <err.h>
 #include <fcntl.h>
 
-#define LOG_(Level, Fmt, ...) fprintf(stderr, "main: " Level " %s:%d\t" Fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__)
-#define LOGD(Fmt, ...) LOG_("D", Fmt, ##__VA_ARGS__)
-#define LOGI(Fmt, ...) LOG_("I", Fmt, ##__VA_ARGS__)
-#define LOGW(Fmt, ...) warn("W %s:%d\t" Fmt, __FILE__, __LINE__, ##__VA_ARGS__);
-#define LOGX(Fmt, ...) errx(EXIT_FAILURE, "E %s:%d\t" Fmt, __FILE__, __LINE__, ##__VA_ARGS__);
-#define LOGF(Fmt, ...) err(EXIT_FAILURE, "E %s:%d\t" Fmt, __FILE__, __LINE__, ##__VA_ARGS__);
+#define LOG_X(Level, Fmt, ...) warnx(Level " %s:%d\t" Fmt, __FILE__, __LINE__, ##__VA_ARGS__)
+#define LOGDX(Fmt, ...) LOG_X("D", Fmt, ##__VA_ARGS__)
+#define LOGIX(Fmt, ...) LOG_X("I", Fmt, ##__VA_ARGS__)
+#define LOGWX(Fmt, ...) LOG_X("W", Fmt, ##__VA_ARGS__)
+#define LOGEX(Fmt, ...) LOG_X("E", Fmt, ##__VA_ARGS__)
+#define LOGFX(Fmt, ...) errx(EXIT_FAILURE, "F %s:%d\t" Fmt, __FILE__, __LINE__, ##__VA_ARGS__)
+#define LOGW(Fmt, ...) warn("W %s:%d\t" Fmt, __FILE__, __LINE__, ##__VA_ARGS__)
+#define LOGF(Fmt, ...) err(EXIT_FAILURE, "F %s:%d\t" Fmt, __FILE__, __LINE__, ##__VA_ARGS__)
+
 #define elementsof(Array) (sizeof(Array)/sizeof((Array)[0]))
+
+struct args {
+    int timeout;
+};
 
 int g_event_pipe[2];
 
@@ -28,20 +36,21 @@ static const char* mode_tostring(const unsigned char mode) {
     return NULL;
 }
 
-static void on_data_received(unsigned char* const data, const unsigned int length) {
-    LOGD("Data received");
-    if (fwrite(data, 1, length, stdout) != length)
-        LOGW("Can't write received NFC data to stdout");
+static void on_host_card_emulation_activated(const unsigned char mode) {
+    LOGDX("> Card activated");
+    if (write(g_event_pipe[1], &mode, 1) != 1)
+        LOGW("> Can't write activation to the event pipe");
 }
 
-static void on_host_card_emulation_activated(const unsigned char mode) {
-    LOGD("Card activated");
-    if (write(g_event_pipe[1], &mode, 1) != 1)
-        LOGW("Can't write activation to the event pipe");
+static void on_data_received(unsigned char* const data, const unsigned int length) {
+    if (fwrite(data, 1, length, stdout) != length)
+        LOGW("> Can't write received NFC data to stdout");
+    else
+        LOGDX("> Data received and forwarded to stdout");
 }
 
 static void on_host_card_emulation_deactivated(void) {
-    LOGD("Card deactivated");
+    LOGDX("> Card deactivated");
     close(g_event_pipe[1]);
 }
 
@@ -65,76 +74,97 @@ static void adjust_file_params(FILE* const f) {
     set_fd_flag(fd, O_NONBLOCK);
 }
 
-int main() {
-    {
-        FILE* files[] = { stdin, stdout, stderr };
-        for (size_t i = 0; i < elementsof(files); i++)
-            adjust_file_params(files[i]);
-    }
-
-    if (pipe2(g_event_pipe, O_NONBLOCK | O_CLOEXEC) != 0)
-        LOGF("Can't initiate internal event pipe");
-
-    {
-        static nfcHostCardEmulationCallback_t s_cb = {
-            .onDataReceived = on_data_received,
-            .onHostCardEmulationActivated = on_host_card_emulation_activated,
-            .onHostCardEmulationDeactivated = on_host_card_emulation_deactivated
-        };
-        if (nfcManager_doInitialize() != 0)
-            LOGX("NFC manager initialization failed");
-        nfcHce_registerHceCallback(&s_cb);
-        nfcManager_enableDiscovery(0x00, 0, 1, 0);
-    }
-
+static void main_loop(const int timeout_ms) {
     struct pollfd pf[] = {
         { .fd = g_event_pipe[0], .events = POLLRDNORM },
         { .fd = STDIN_FILENO, .events = POLLRDNORM }
     };
-    int pf_size = elementsof(pf);
-    while (poll(pf, pf_size, 5 * 1000) > 0) {
+    int pf_size = 1;
+    int poll_res;
+    LOGIX("Waiting for a reader...");
+    while ((poll_res = poll(pf, pf_size, timeout_ms)) > 0) {
+        if (pf[0].revents & POLLNVAL) {
+            LOGEX("Error in the event pipe");
+            break;
+        }
+        if (pf[1].revents & POLLNVAL) {
+            LOGEX("Error in the response stream (stdin)");
+            break;
+        }
         if (pf[0].revents & POLLRDNORM) {
             unsigned char event[1];
             if (read(pf[0].fd, event, sizeof(event)) != sizeof(event))
-                LOGF("Can't read event");
-            if (event[0] != MODE_LISTEN_A) {
-                LOGD("Unsupported reader type %s", mode_tostring(event[0]));
-                break;
-            }
+                LOGF("Can't read an event");
+            pf_size = 2;
+            LOGDX("Type %s reader detected", mode_tostring(event[0]));
         }
         if (pf[0].revents & POLLHUP) {
-            LOGD("Event pipe closed");
+            LOGIX("HCE is inactive – no more message will be processed");
             close(pf[0].fd);
             break;
         }
-        if (pf[0].revents & POLLNVAL) {
-            LOGD("Error in event pipe");
-            break;
-        }
         if (pf[1].revents & POLLRDNORM) {
-            LOGD("Sending response");
+            LOGDX("Sending response to the reader");
             unsigned char buf[255];
             const ssize_t s = read(pf[1].fd, buf, sizeof(buf));
             if (s < 0)
                 LOGF("Can't read from fd %d", pf[1].fd);
             const int rs = nfcHce_sendCommand(buf, s);
             if (rs != 0)
-                LOGX("Can't send NFC command %d", rs);
+                LOGFX("Can't send NFC command %d", rs);
         }
         if (pf[1].revents & POLLHUP) {
-            LOGD("Response pipe is closed");
-            close(pf[1].fd);
+            LOGWX("Response pipe is closed – no more responses will be served");
             pf_size = 1;
             pf[1].revents = 0;
         }
-        if (pf[1].revents & POLLNVAL) {
-            LOGD("Error in response pipe");
-            break;
-        }
     }
+    switch (poll_res) {
+        case 0:
+            LOGWX("Timeout reached");
+            break;
+        case -1:
+            LOGEX("Error in polling for events");
+            break;
+        default:
+            break;
+    }
+}
 
+static struct args parse_args(const int ac, char* const* av) {
+    if (ac > 2)
+        LOGFX("Expected 0 or 1 argument");
+    return (struct args){
+        .timeout = (ac == 2) ? atoi(av[1]) : 5 * 1000
+    };
+}
+
+int main(int ac, char** av) {
+    const struct args ag = parse_args(ac, av);
+    {
+        FILE* files[] = { stdin, stdout, stderr };
+        for (size_t i = 0; i < elementsof(files); i++)
+            adjust_file_params(files[i]);
+    }
+    if (pipe2(g_event_pipe, O_NONBLOCK | O_CLOEXEC) != 0)
+        LOGF("Can't initiate internal event pipe");
+
+    int nfc_rc;
+    if ((nfc_rc = nfcManager_doInitialize()) != 0)
+        LOGFX("NFC manager initialization failed: %#X", nfc_rc);
+    static nfcHostCardEmulationCallback_t s_cb = {
+        .onDataReceived = on_data_received,
+        .onHostCardEmulationActivated = on_host_card_emulation_activated,
+        .onHostCardEmulationDeactivated = on_host_card_emulation_deactivated
+    };
+    nfcHce_registerHceCallback(&s_cb);
+    nfcManager_enableDiscovery(0x00, 0, 1, 0);
+
+    main_loop(ag.timeout);
+
+    nfcManager_disableDiscovery();
     nfcHce_deregisterHceCallback();
-    if (nfcManager_doDeinitialize() != 0)
-        LOGX("Error during NFC deinitialization");
+    if ((nfc_rc = nfcManager_doDeinitialize()) != 0)
+        LOGFX("Error during NFC deinitialization: %#X", nfc_rc);
     return EXIT_SUCCESS;
 }
