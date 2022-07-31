@@ -143,7 +143,7 @@ static struct args parse_args(const int ac, char* av[static const ac]) {
 int main(int ac, char** av) {
     const struct args ag = parse_args(ac, av);
     {
-        FILE* files[] = { stdin, stdout, stderr };
+        FILE* files[] = { stdout, stderr };
         for (size_t i = 0; i < elementsof(files); i++)
             adjust_file_params(files[i]);
     }
