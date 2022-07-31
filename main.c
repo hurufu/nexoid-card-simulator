@@ -128,7 +128,7 @@ static void main_loop(const int timeout_ms) {
 
 static struct args parse_args(const int ac, char* av[static const ac]) {
     if (ac > 3)
-        LOGFX("\nUSAGE:\n\t%s <timeout ms> <log level>\n", av[0]);
+        LOGFX("USAGE: %s <timeout ms> <log level>", av[0]);
     const int log_level = (ac == 3) ? atoi(av[2]) : LOG_WARNING;
     if (log_level > LOG_DEBUG)
         LOGFX("Max log level is %d", LOG_DEBUG);
