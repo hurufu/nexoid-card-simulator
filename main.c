@@ -21,10 +21,11 @@ enum LogLevel { LOG_FATAL, LOG_ERROR, LOG_WARNING, LOG_INFO, LOG_DEBUG };
 
 struct args {
     int timeout;
+    enum LogLevel log_level;
 };
 
 static int g_event_pipe[2];
-static enum LogLevel g_log_level = LOG_INFO;
+static enum LogLevel g_log_level;
 
 static const char* mode_tostring(const unsigned char mode) {
     switch (mode) {
@@ -127,15 +128,20 @@ static void main_loop(const int timeout_ms) {
 }
 
 static struct args parse_args(const int ac, char* av[static const ac]) {
-    if (ac > 2)
-        LOGFX("Expected 0 or 1 argument");
+    if (ac > 3)
+        LOGFX("\nUSAGE:\n\t%s <timeout ms> <log level>\n", av[0]);
+    const int log_level = (ac == 3) ? atoi(av[2]) : LOG_WARNING;
+    if (log_level > LOG_DEBUG)
+        LOGFX("Max log level is %d", LOG_DEBUG);
     return (struct args){
-        .timeout = (ac == 2) ? atoi(av[1]) : 5 * 1000
+        .timeout = (ac >= 2) ? atoi(av[1]) : 5 * 1000,
+        .log_level = log_level
     };
 }
 
 int main(int ac, char** av) {
     const struct args ag = parse_args(ac, av);
+    g_log_level = ag.log_level;
 
     {
         if (pipe(g_event_pipe) != 0)
