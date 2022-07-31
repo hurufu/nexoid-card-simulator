@@ -1,5 +1,4 @@
 #include <linux_nfc_api.h>
-#include <pthread.h>
 #include <stdbool.h>
 #include <unistd.h>
 #include <stdlib.h>
