@@ -23,7 +23,7 @@ struct args {
     int timeout;
 };
 
-static int g_event_pipe[2];
+static int g_event_pipe[2] = { -1, -1 };
 static enum LogLevel g_log_level;
 
 static const char* mode_tostring(const unsigned char mode) {
