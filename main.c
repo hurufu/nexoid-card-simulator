@@ -100,6 +100,8 @@ static void main_loop(const int timeout_ms) {
         if (pf[0].revents & POLLHUP) {
             LOGIX("HCE is inactive – no more message will be processed");
             close(pf[0].fd);
+            fclose(stdin);
+            fclose(stdout);
             break;
         }
         if (pf[1].revents & POLLRDNORM) {
