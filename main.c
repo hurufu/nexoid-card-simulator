@@ -51,7 +51,14 @@ static void on_data_received(unsigned char* const data, const unsigned int lengt
 }
 
 static void on_host_card_emulation_deactivated(void) {
+#   if 1
+    // Ugly workaround for the NFC Tools app
+    static int count = 0;
+    if ((++count % 4) == 0)
+        close(g_event_pipe[1]);
+#   else
     close(g_event_pipe[1]);
+#   endif
     LOGDX("> Card deactivated");
 }
 
