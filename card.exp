@@ -1,15 +1,24 @@
-set timeout -1
-
+set stty_init raw
 spawn {*}$argv
 
-expect [binary decode hex {00 a4 04 00 07 d2 76 00 00 85 01 01 00}]
-send [binary decode hex {6A 82}]
+remove_nulls 0
+match_max 255
+log_user 0
 
-expect \u00A4
-send [binary decode hex {90 00}]
+set ok [binary decode hex {90 00}]
+set not_found [binary decode hex {6A 82}]
 
-expect \u00A4
-send [binary decode hex {90 00}]
+#expect [binary decode hex {a4 04 00 07 d2 76 00 00 85 01 01 00}]
+expect ?*
+send $not_found
+expect $not_found
+
+expect ?*
+send $ok
+expect $ok
+
+expect ?*
+send $ok
+expect $ok
 
 expect eof
-exit
