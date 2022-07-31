@@ -21,7 +21,6 @@ enum LogLevel { LOG_FATAL, LOG_ERROR, LOG_WARNING, LOG_INFO, LOG_DEBUG };
 
 struct args {
     int timeout;
-    enum LogLevel log_level;
 };
 
 static int g_event_pipe[2];
@@ -133,15 +132,14 @@ static struct args parse_args(const int ac, char* av[static const ac]) {
     const int log_level = (ac == 3) ? atoi(av[2]) : LOG_WARNING;
     if (log_level > LOG_DEBUG)
         LOGFX("Max log level is %d", LOG_DEBUG);
+    g_log_level = log_level;
     return (struct args){
-        .timeout = (ac >= 2) ? atoi(av[1]) : 5 * 1000,
-        .log_level = log_level
+        .timeout = (ac >= 2) ? atoi(av[1]) : 5 * 1000
     };
 }
 
 int main(int ac, char** av) {
     const struct args ag = parse_args(ac, av);
-    g_log_level = ag.log_level;
 
     {
         if (pipe(g_event_pipe) != 0)
