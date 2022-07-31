@@ -132,7 +132,7 @@ static void main_loop(const int timeout_ms) {
     }
 }
 
-static struct args parse_args(const int ac, char* const* const av) {
+static struct args parse_args(const int ac, char* av[static const ac]) {
     if (ac > 2)
         LOGFX("Expected 0 or 1 argument");
     return (struct args){
