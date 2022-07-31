@@ -1,0 +1,15 @@
+set timeout -1
+
+spawn {*}$argv
+
+expect [binary decode hex {00 a4 04 00 07 d2 76 00 00 85 01 01 00}]
+send [binary decode hex {6A 82}]
+
+expect \u00A4
+send [binary decode hex {90 00}]
+
+expect \u00A4
+send [binary decode hex {90 00}]
+
+expect eof
+exit
