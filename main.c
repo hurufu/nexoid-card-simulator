@@ -46,7 +46,7 @@ static void on_data_received(unsigned char* const data, const unsigned int lengt
     if (fwrite(data, 1, length, stdout) != length)
         LOGW("> Can't write received NFC data to stdout");
     else
-        LOGDX("> Data received and forwarded to stdout");
+        LOGDX("> Data was received and forwarded (length %u)", length);
 }
 
 static void on_host_card_emulation_deactivated(void) {
@@ -104,14 +104,16 @@ static void main_loop(const int timeout_ms) {
             break;
         }
         if (pf[1].revents & POLLRDNORM) {
-            LOGDX("Sending response to the reader");
             unsigned char buf[255];
-            const ssize_t s = read(pf[1].fd, buf, sizeof(buf));
+            ssize_t s = read(pf[1].fd, buf, sizeof(buf));
             if (s < 0)
                 LOGF("Can't read from fd %d", pf[1].fd);
             const int rs = nfcHce_sendCommand(buf, s);
-            if (rs != 0)
-                LOGFX("Can't send NFC command %d", rs);
+            if (rs != 0) {
+                LOGEX("Can't send NFC command %d", rs);
+                break;
+            }
+            LOGDX("Response was sent to the reader   (length %zd)", s);
         }
         if (pf[1].revents & POLLHUP) {
             LOGWX("Response pipe is closed – no more responses will be served");
