@@ -109,7 +109,7 @@ static void main_loop(const int timeout_ms) {
                 LOGF("Can't read from fd %d", pf[1].fd);
             const int rs = nfcHce_sendCommand(buf, s);
             if (rs != 0) {
-                LOGEX("Can't send NFC command %d", rs);
+                LOGEX("Can't send NFC command (%#x)", rs);
                 break;
             }
             LOGDX("Response was sent to the reader   (length %zd)", s);
@@ -152,7 +152,7 @@ int main(int ac, char** av) {
 
     int nfc_rc;
     if ((nfc_rc = nfcManager_doInitialize()) != 0)
-        LOGFX("NFC manager initialization failed: %#X", nfc_rc);
+        LOGFX("NFC manager initialization failed: %#x", nfc_rc);
     static nfcHostCardEmulationCallback_t s_cb = {
         .onDataReceived = on_data_received,
         .onHostCardEmulationActivated = on_host_card_emulation_activated,
@@ -166,6 +166,6 @@ int main(int ac, char** av) {
     nfcManager_disableDiscovery();
     nfcHce_deregisterHceCallback();
     if ((nfc_rc = nfcManager_doDeinitialize()) != 0)
-        LOGFX("Error during NFC deinitialization: %#X", nfc_rc);
+        LOGFX("Error during NFC deinitialization: %#x", nfc_rc);
     return EXIT_SUCCESS;
 }
