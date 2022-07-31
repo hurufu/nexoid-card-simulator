@@ -1,14 +1,10 @@
-#define _GNU_SOURCE
-#include <linux_nfc_api.h>
-#include <stdbool.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <poll.h>
-#include <errno.h>
 #include <err.h>
 #include <fcntl.h>
+#include <fcntl.h>
+#include <linux_nfc_api.h>
+#include <poll.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 #define LOG_X(Level, Prefix, Fmt, ...) (Level > g_log_level ? (void)0 : warnx(Prefix " %s:%d\t" Fmt, __FILE__, __LINE__, ##__VA_ARGS__))
 #define LOGDX(Fmt, ...) LOG_X(LOG_DEBUG, "D", Fmt, ##__VA_ARGS__)
@@ -27,8 +23,8 @@ struct args {
     int timeout;
 };
 
-int g_event_pipe[2];
-enum LogLevel g_log_level = LOG_INFO;
+static int g_event_pipe[2];
+static enum LogLevel g_log_level = LOG_INFO;
 
 static const char* mode_tostring(const unsigned char mode) {
     switch (mode) {
@@ -40,21 +36,22 @@ static const char* mode_tostring(const unsigned char mode) {
 }
 
 static void on_host_card_emulation_activated(const unsigned char mode) {
-    LOGDX("> Card activated");
     if (write(g_event_pipe[1], &mode, 1) != 1)
         LOGW("> Can't write activation to the event pipe");
+    else
+        LOGDX("> Card activated");
 }
 
 static void on_data_received(unsigned char* const data, const unsigned int length) {
-    if (fwrite(data, 1, length, stdout) != length)
+    if (write(STDOUT_FILENO, data, length) != length)
         LOGW("> Can't write received NFC data to stdout");
     else
         LOGDX("> Data was received and forwarded (length %u)", length);
 }
 
 static void on_host_card_emulation_deactivated(void) {
-    LOGDX("> Card deactivated");
     close(g_event_pipe[1]);
+    LOGDX("> Card deactivated");
 }
 
 static void set_fd_flag(const int fd, const int flag) {
@@ -68,21 +65,12 @@ static void set_fd_flag(const int fd, const int flag) {
         LOGF("Can't set fd %d to %X mode", fd, flag);
 }
 
-static void adjust_file_params(FILE* const f) {
-    const int fd = fileno(f);
-    if (fd == -1)
-        LOGF("Can't adjust file parameters");
-    if (setvbuf(f, NULL, _IONBF, 0) != 0)
-        LOGF("Can't make fd %d unbuffered", fd);
-    set_fd_flag(fd, O_NONBLOCK);
-}
-
 static void main_loop(const int timeout_ms) {
     struct pollfd pf[] = {
         { .fd = g_event_pipe[0], .events = POLLRDNORM },
         { .fd = STDIN_FILENO, .events = POLLRDNORM }
     };
-    int pf_size = 1;
+    nfds_t pf_size = 1;
     int poll_res;
     LOGIX("HCE is active – waiting for a reader...");
     while ((poll_res = poll(pf, pf_size, timeout_ms)) > 0) {
@@ -104,8 +92,8 @@ static void main_loop(const int timeout_ms) {
         if (pf[0].revents & POLLHUP) {
             LOGIX("HCE is inactive – no more message will be processed");
             close(pf[0].fd);
-            fclose(stdin);
-            fclose(stdout);
+            close(STDIN_FILENO);
+            close(STDOUT_FILENO);
             break;
         }
         if (pf[1].revents & POLLRDNORM) {
@@ -148,13 +136,14 @@ static struct args parse_args(const int ac, char* av[static const ac]) {
 
 int main(int ac, char** av) {
     const struct args ag = parse_args(ac, av);
+
     {
-        FILE* files[] = { stdout, stderr };
-        for (size_t i = 0; i < elementsof(files); i++)
-            adjust_file_params(files[i]);
+        if (pipe(g_event_pipe) != 0)
+            LOGF("Can't initiate internal event pipe");
+        const int fd[] = { STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO, g_event_pipe[0], g_event_pipe[1] };
+        for (size_t i = 0; i < elementsof(fd); i++)
+            set_fd_flag(fd[i], O_NONBLOCK | O_CLOEXEC);
     }
-    if (pipe2(g_event_pipe, O_NONBLOCK | O_CLOEXEC) != 0)
-        LOGF("Can't initiate internal event pipe");
 
     if (nfcManager_doInitialize() != 0)
         LOGFX("NFC manager initialization failed");
