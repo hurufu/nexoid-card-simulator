@@ -10,22 +10,25 @@
 #include <err.h>
 #include <fcntl.h>
 
-#define LOG_X(Level, Fmt, ...) warnx(Level " %s:%d\t" Fmt, __FILE__, __LINE__, ##__VA_ARGS__)
-#define LOGDX(Fmt, ...) LOG_X("D", Fmt, ##__VA_ARGS__)
-#define LOGIX(Fmt, ...) LOG_X("I", Fmt, ##__VA_ARGS__)
-#define LOGWX(Fmt, ...) LOG_X("W", Fmt, ##__VA_ARGS__)
-#define LOGEX(Fmt, ...) LOG_X("E", Fmt, ##__VA_ARGS__)
+#define LOG_X(Level, Prefix, Fmt, ...) (Level > g_log_level ? (void)0 : warnx(Prefix " %s:%d\t" Fmt, __FILE__, __LINE__, ##__VA_ARGS__))
+#define LOGDX(Fmt, ...) LOG_X(LOG_DEBUG, "D", Fmt, ##__VA_ARGS__)
+#define LOGIX(Fmt, ...) LOG_X(LOG_INFO, "I", Fmt, ##__VA_ARGS__)
+#define LOGWX(Fmt, ...) LOG_X(LOG_WARNING, "W", Fmt, ##__VA_ARGS__)
+#define LOGEX(Fmt, ...) LOG_X(LOG_ERROR, "E", Fmt, ##__VA_ARGS__)
 #define LOGFX(Fmt, ...) errx(EXIT_FAILURE, "F %s:%d\t" Fmt, __FILE__, __LINE__, ##__VA_ARGS__)
 #define LOGW(Fmt, ...) warn("W %s:%d\t" Fmt, __FILE__, __LINE__, ##__VA_ARGS__)
 #define LOGF(Fmt, ...) err(EXIT_FAILURE, "F %s:%d\t" Fmt, __FILE__, __LINE__, ##__VA_ARGS__)
 
 #define elementsof(Array) (sizeof(Array)/sizeof((Array)[0]))
 
+enum LogLevel { LOG_FATAL, LOG_ERROR, LOG_WARNING, LOG_INFO, LOG_DEBUG };
+
 struct args {
     int timeout;
 };
 
 int g_event_pipe[2];
+enum LogLevel g_log_level = LOG_INFO;
 
 static const char* mode_tostring(const unsigned char mode) {
     switch (mode) {
@@ -81,7 +84,7 @@ static void main_loop(const int timeout_ms) {
     };
     int pf_size = 1;
     int poll_res;
-    LOGIX("Waiting for a reader...");
+    LOGIX("HCE is active – waiting for a reader...");
     while ((poll_res = poll(pf, pf_size, timeout_ms)) > 0) {
         if (pf[0].revents & POLLNVAL) {
             LOGEX("Error in the event pipe");
