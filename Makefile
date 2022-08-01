@@ -1,4 +1,4 @@
-.PHONY: clean sixel-% dump-apdu dump-hex
+.PHONY: clean sixel-% dump-apdu dump-hex feh-%
 
 LDLIBS    = $(shell pkg-config --libs libnfc-nci)
 CFLAGS   := -Wall -Wextra -ggdb3 -Og -pthread
@@ -25,5 +25,7 @@ apdu:
 	convert $< $@
 sixel-%: %.rl
 	ragel -p -V $< | dot -Tsvg | convert svg:- sixel:-
+feh-%: %.rl
+	ragel -p -V $< | dot -Tpng | feh -
 %.s: %.c
 	$(CC) -S -Wall -Wextra -g0 -O3 -fno-plt -fno-asynchronous-unwind-tables -o $@ $<
