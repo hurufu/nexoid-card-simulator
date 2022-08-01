@@ -5,9 +5,9 @@ CFLAGS   := -Wall -Wextra -ggdb3 -Og -pthread
 
 dump-hex: main
 	while sleep 3; do printf '\x6A\x82'; done | ./$< 5000 5 | od -Ad -tx1z
-dump-apdu: main hexcat apdu
+dump-apdu: main hexpipe apdu
 	while sleep 1; do printf '\x6A\x82'; sleep 1; done | ./$< 5000 5 > apdu
-clean: F := $(wildcard main card apdu hexcat *.s)
+clean: F := $(wildcard main card apdu hexpipe *.s)
 clean:
 	-$(if $(strip $F),$(RM) -- $F,)
 apdu:
