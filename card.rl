@@ -1,14 +1,27 @@
 #include <string.h>
 #include <stdio.h>
 #include <fcntl.h>
+#include <unistd.h>
+#include <errno.h>
+#include "log.h"
 
 #define elementsof(Array) (sizeof(Array)/sizeof((Array)[0]))
+
+static enum LogLevel g_log_level = LOG_DEBUG;
 
 %%{
     machine card;
 
-    select = 0x00 0xA4 0x00 0x00 @{ printf("Select\n"); };
-    main := select;
+    cla = 0x00;
+    cmd_select = 0xa4;
+    select = cla cmd_select;
+    length_and_aid_ndef = 0x07 0xd2 0x76 0x00 0x00 0x85 0x01 0x01;
+    length_aid_capability_container = 0x02 0xe1 0x03;
+
+    select_ndef = select 0x04 0x00 length_and_aid_ndef 0x00 @{ LOGDX("SELECT NDEF"); };
+    select_capability_container = select 0x00 0x0c length_aid_capability_container @{ LOGDX("SELECT CC"); };
+
+    main := (select_ndef | select_capability_container)*;
 }%%
 
 %% write data;
@@ -20,25 +33,25 @@ static void set_fd_flag(const int fd, const int flag) {
     fcntl(fd, F_SETFL, fl | flag);
 }
 
-static void adjust_file_params(FILE* const f) {
-    setvbuf(f, NULL, _IONBF, 0);
-    set_fd_flag(fileno(f), O_NONBLOCK);
-}
-
 int main() {
     {
-        FILE* files[] = { stdout, stderr };
-        for (size_t i = 0; i < elementsof(files); i++)
-            adjust_file_params(files[i]);
+        const int fd[] = { 0, 1 };
+        for (size_t i = 0; i < elementsof(fd); i++)
+            set_fd_flag(fd[i], O_CLOEXEC);
     }
+
     char buf[255];
-    const int size = fread(buf, 1, sizeof(buf), stdin);
-    printf("read %d bytes\n", size);
+    ssize_t rc;
     int cs;
-    char *p = buf;
-    char *pe = p + size;
-    %% write init;
-    %% write exec;
-    printf("Done.\n");
+    for (;;) {
+        if ((rc = read(0, buf, sizeof(buf))) <= 0)
+            break;
+        char* p = buf, * pe = p + rc;
+        %% write init;
+        %% write exec;
+    }
+    if (rc)
+        LOGF("");
+    LOGDX("Done");
     return 0;
 }
