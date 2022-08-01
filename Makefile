@@ -1,13 +1,17 @@
-.PHONY: hexdump clean sixel-%
+.PHONY: clean sixel-% dump-apdu dump-hex
 
 LDLIBS    = $(shell pkg-config --libs libnfc-nci)
 CFLAGS   := -Wall -Wextra -ggdb3 -Og -pthread
 
-hexdump: main
+dump-hex: main
 	while sleep 3; do printf '\x6A\x82'; done | ./$< 5000 5 | od -Ad -tx1z
-clean: F := main card
+dump-apdu: main hexcat apdu
+	while sleep 1; do printf '\x6A\x82'; sleep 1; done | ./$< 5000 5 > apdu
+clean: F := main card apdu hexcat
 clean:
 	-$(if $(strip $(wildcard $F)),$(RM) -- $F,)
+apdu:
+	mkfifo -- $@
 
 %.c: %.rl
 	ragel -C -o $@ $<
