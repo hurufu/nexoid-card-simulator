@@ -5,6 +5,8 @@
 #include <poll.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
+#include <signal.h>
 
 #define LOG_X(Level, Prefix, Fmt, ...) (Level > g_log_level ? (void)0 : warnx(Prefix " %s:%d\t" Fmt, __FILE__, __LINE__, ##__VA_ARGS__))
 #define LOGF_(ErrFunction, Fmt, ...) (LOG_FATAL > g_log_level ? (void)0 : ErrFunction (EXIT_FAILURE, "F %s:%d\t" Fmt, __FILE__, __LINE__, ##__VA_ARGS__))
@@ -34,6 +36,10 @@ static const char* mode_tostring(const unsigned char mode) {
         case MODE_LISTEN_F: return "F";
     }
     return NULL;
+}
+
+static void sig_handler(const int sig) {
+    close(STDOUT_FILENO);
 }
 
 static void on_host_card_emulation_activated(const unsigned char mode) {
@@ -76,9 +82,10 @@ static void set_fd_flag(const int fd, const int flag) {
 static void main_loop(const int timeout_ms) {
     struct pollfd pf[] = {
         { .fd = g_event_pipe[0], .events = POLLRDNORM },
+        { .fd = STDOUT_FILENO, .events = POLLHUP },
         { .fd = STDIN_FILENO, .events = POLLRDNORM }
     };
-    nfds_t pf_size = 1;
+    nfds_t pf_size = 2;
     int poll_res;
     LOGIX("HCE is active – waiting for a reader...");
     while ((poll_res = poll(pf, pf_size, timeout_ms)) > 0) {
@@ -87,6 +94,10 @@ static void main_loop(const int timeout_ms) {
             break;
         }
         if (pf[1].revents & POLLNVAL) {
+            LOGEX("Error in the command stream (stdout)");
+            break;
+        }
+        if (pf[2].revents & POLLNVAL) {
             LOGEX("Error in the response stream (stdin)");
             break;
         }
@@ -94,21 +105,18 @@ static void main_loop(const int timeout_ms) {
             unsigned char event[1];
             if (read(pf[0].fd, event, sizeof(event)) != sizeof(event))
                 LOGF("Can't read an event");
-            pf_size = 2;
+            pf_size = 3;
             LOGDX("Type %s reader detected", mode_tostring(event[0]));
         }
         if (pf[0].revents & POLLHUP) {
             LOGIX("HCE is inactive – no more message will be processed");
-            close(pf[0].fd);
-            close(STDIN_FILENO);
-            close(STDOUT_FILENO);
             break;
         }
-        if (pf[1].revents & POLLRDNORM) {
+        if (pf[2].revents & POLLRDNORM) {
             unsigned char buf[255];
-            ssize_t s = read(pf[1].fd, buf, sizeof(buf));
+            ssize_t s = read(pf[2].fd, buf, sizeof(buf));
             if (s < 0)
-                LOGF("Can't read from fd %d", pf[1].fd);
+                LOGF("Can't read from fd %d", pf[2].fd);
             const int rs = nfcHce_sendCommand(buf, s);
             if (rs != 0) {
                 LOGEX("Can't send NFC command (%#x)", rs);
@@ -116,12 +124,15 @@ static void main_loop(const int timeout_ms) {
             }
             LOGDX("Response was sent to the reader   (length %zd)", s);
         }
-        if (pf[1].revents & POLLHUP) {
+        if (pf[2].revents & POLLHUP) {
             LOGWX("Response pipe is closed – no more responses will be served");
-            pf_size = 1;
-            pf[1].revents = 0;
+            pf_size = 2;
+            pf[2].revents = 0;
         }
     }
+    const int fd[] = { STDIN_FILENO, STDOUT_FILENO, g_event_pipe[0], g_event_pipe[1] };
+    for (size_t i = 0; i < elementsof(fd); i++)
+        close(fd[i]);
     switch (poll_res) {
         case 0:
             LOGWX("Timeout reached");
@@ -155,6 +166,11 @@ int main(int ac, char** av) {
         const int fd[] = { STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO, g_event_pipe[0], g_event_pipe[1] };
         for (size_t i = 0; i < elementsof(fd); i++)
             set_fd_flag(fd[i], O_NONBLOCK | O_CLOEXEC);
+        static const struct sigaction act = {
+            .sa_handler = sig_handler
+        };
+        if (sigaction(SIGPIPE, &act, NULL) != 0)
+            LOGF("Can't set signal handler");
     }
 
     if (nfcManager_doInitialize() != 0)
@@ -173,5 +189,6 @@ int main(int ac, char** av) {
     nfcHce_deregisterHceCallback();
     if (nfcManager_doDeinitialize() != 0)
         LOGFX("Error during NFC deinitialization");
+    LOGDX("Done");
     return EXIT_SUCCESS;
 }
