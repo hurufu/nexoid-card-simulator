@@ -8,7 +8,7 @@ dump-hex: main
 dump-apdu: main hexpipe apdu
 	while sleep 1; do printf '\x6A\x82'; sleep 1; done | ./$< 5000 5 > apdu
 card-test: main card apdu
-	od -tx1z < apdu & while sleep 1; do printf '\x90\x00'; sleep 1; printf '\x6A\x82'; done | ./$< 5000 5 | tee apdu | ./card & wait
+	od -tx1z < apdu & (while sleep 1; do printf '\x90\x00'; sleep 1; printf '\x6A\x82'; done) | ./$< 5000 5 | tee apdu | ./card & wait
 clean: F := $(wildcard main card apdu hexpipe *.s)
 clean:
 	-$(if $(strip $F),$(RM) -- $F,)

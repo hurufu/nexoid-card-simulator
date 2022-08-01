@@ -14,11 +14,13 @@ static enum LogLevel g_log_level = LOG_DEBUG;
     cla = 0x00;
     cmd_select = 0xa4;
     select = cla cmd_select;
-    length_and_aid_ndef = 0x07 0xd2 0x76 0x00 0x00 0x85 0x01 0x01;
-    length_aid_capability_container = 0x02 0xe1 0x03;
+    lc_and_aid_ndef = 0x07 0xd2 0x76 0x00 0x00 0x85 0x01 0x01;
+    lc_aid_capability_container = 0x02 0xe1 0x03;
+    lc_aid_ppse_directory = 0x0e '2PAY.SYS.DDF01';
 
-    select_ndef = select 0x04 0x00 length_and_aid_ndef 0x00 @{ LOGDX("SELECT NDEF"); };
-    select_capability_container = select 0x00 0x0c length_aid_capability_container @{ LOGDX("SELECT CC"); };
+    select_ndef = select 0x04 0x00 lc_and_aid_ndef 0x00 @{ LOGDX("SELECT NDEF"); };
+    select_capability_container = select 0x00 0x0c lc_aid_capability_container @{ LOGDX("SELECT CC"); };
+    select_ppse = select 0x04 0x00 lc_aid_ppse_directory 0x00 @{ LOGDX("SELECT PPSE"); };
 
     main := (select_ndef | select_capability_container)*;
 }%%
