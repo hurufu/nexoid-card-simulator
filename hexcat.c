@@ -1,13 +1,18 @@
 #include <unistd.h>
-#include <stdio.h>
 #include <err.h>
 
+static inline char hex(const unsigned char n) {
+    return n + (n <= 9 ? '0' : ('A' - 10));
+}
+
 int main() {
-    ssize_t rc;
-    unsigned char c;
-    setvbuf(stdout, NULL, _IONBF, 0);
-    while ((rc = read(0, &c, 1)) == 1)
-        printf("%02X ", c);
-    putchar('\n');
-    err(-rc, NULL);
+    int rc;
+    for (;;) {
+        unsigned char c;
+        if ((rc = read(0, &c, 1)) != 1)
+            break;
+        if ((rc = (write(1, (char[]){ hex((c & 0xF0) >> 4), hex(c & 0x0F), ' ' }, 3) != 3)))
+            break;
+    }
+    err(rc, NULL);
 }

@@ -7,9 +7,9 @@ dump-hex: main
 	while sleep 3; do printf '\x6A\x82'; done | ./$< 5000 5 | od -Ad -tx1z
 dump-apdu: main hexcat apdu
 	while sleep 1; do printf '\x6A\x82'; sleep 1; done | ./$< 5000 5 > apdu
-clean: F := main card apdu hexcat
+clean: F := $(wildcard main card apdu hexcat *.s)
 clean:
-	-$(if $(strip $(wildcard $F)),$(RM) -- $F,)
+	-$(if $(strip $F),$(RM) -- $F,)
 apdu:
 	mkfifo -- $@
 
@@ -23,3 +23,5 @@ apdu:
 	convert $< $@
 sixel-%: %.rl
 	ragel -p -V $< | dot -Tsvg | convert svg:- sixel:-
+%.s: %.c
+	$(CC) -S -Wall -Wextra -g0 -O3 -fno-plt -fno-asynchronous-unwind-tables -o $@ $<
