@@ -6,8 +6,7 @@
 #include <string.h>
 #include <signal.h>
 #include "log.h"
-
-#define elementsof(Array) (sizeof(Array)/sizeof((Array)[0]))
+#include "util.h"
 
 struct args {
     int timeout;

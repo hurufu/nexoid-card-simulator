@@ -4,8 +4,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include "log.h"
-
-#define elementsof(Array) (sizeof(Array)/sizeof((Array)[0]))
+#include "util.h"
 
 static enum LogLevel g_log_level = LOG_DEBUG;
 
