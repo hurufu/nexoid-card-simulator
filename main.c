@@ -39,6 +39,7 @@ static const char* mode_tostring(const unsigned char mode) {
 }
 
 static void sig_handler(const int sig) {
+    (void)sig;
     close(STDOUT_FILENO);
 }
 
