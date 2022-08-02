@@ -1,3 +1,4 @@
+#include <unistd.h>
 #include "log.h"
 
 static enum LogLevel g_log_level = LOG_DEBUG;
@@ -29,7 +30,7 @@ static enum LogLevel g_log_level = LOG_DEBUG;
     main := (select_ndef | select_capability_container | read_binary)*;
 }%%
 
-%% write data;
+%% write data noentry;
 
 int main() {
     char buf[255];
@@ -41,6 +42,10 @@ int main() {
         const char* p = buf, * const pe = p + rc;
         %% write init;
         %% write exec;
+        if (card_error == cs)
+            LOGFX("No valid transition for DFA");
+        if (card_first_final == cs)
+            LOGFX("DFA accepted its input – no more transitions possibe");
     }
     if (rc)
         LOGF("");
