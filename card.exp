@@ -3,37 +3,38 @@ spawn {*}$argv
 set not_found 6A82
 set ok        9000
 
-for {set a 0} {$a < 20} {incr a} {
-    expect {
-        -re ^(..)(..)(..)(..)(..) {
-            set Cla $expect_out(1,string)
-            set Ins $expect_out(2,string)
-            set P1  $expect_out(3,string)
-            set P2  $expect_out(4,string)
-            set Lc  $expect_out(5,string)
-            switch $Cla$Ins {
-                00A4 {
-                    expect -re ([string repeat .. [expr 0x$Lc]])(..)?
-                    set aid $expect_out(1,string)
-                    switch $aid {
-                        D2760000850101 { send $not_found}
-                        D2760000850100 { send $ok}
-                        E103           { send $not_found}
-                        325041592E5359532E4444463031 {
-                            send "6F2D840E325041592E5359532E4444463031A51BBF0C1861164F07A0000000031010500B5649534120435245444954$ok"
-                        }
-                        A0000000031010 {
-                            send "6F328407A0000000031010A527500B56495341204352454449549F380C9F66049F02065F2A029F3704BF0C089F5A050008400840$ok"
-                        }
-                        default exit
-                    }
+for {set i 0} {$i < 20} {incr i} {
+    foreach {a} {Cla Ins P1 P2 Lc} {
+        expect {
+            ^?? {set $a $expect_out(buffer)}
+            default exit
+        }
+    }
+    expect -re ([string repeat .. [expr 0x$Lc]])(..)?
+    switch $Cla$Ins {
+        00A4 {
+            set aid $expect_out(1,string)
+            switch $aid {
+                D2760000850101 {send $not_found}
+                D2760000850100 {send $ok}
+                E103           {send $not_found}
+                325041592E5359532E4444463031 {
+                    send "6F2D840E325041592E5359532E4444463031A51BBF0C1861164F07A0000000031010500B5649534120435245444954$ok"
                 }
-                80A8 {
-                    send "773D57104761739001010119D241220117589472820200005F3401019F100706011103A000009F260813C91D65A910C9569F2701809F360200029F6C028000$ok"
+                A0000000031010 {
+                    send "6F328407A0000000031010A527500B56495341204352454449549F380C9F66049F02065F2A029F3704BF0C089F5A050008400840$ok"
                 }
-                default exit
+                default {
+                    send $not_found
+                }
             }
         }
-        default exit
+        80A8 {
+            set PDOL $expect_out(1,string)
+            send "773D57104761739001010119D241220117589472820200005F3401019F100706011103A000009F260813C91D65A910C9569F2701809F360200029F6C028000$ok"
+        }
+        default {
+            send $not_found
+        }
     }
 }
