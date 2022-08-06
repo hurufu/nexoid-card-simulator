@@ -13,7 +13,7 @@ clean:
 apdu debug:
 	mkfifo -- $@
 script: main card.exp debug hexpipe unhexpipe
-	expect -- card.exp sh -c 'stty raw -echo; (stdbuf -i0 -o0 tr -d " \r\n\t" | ./unhexpipe | ./$< 5000 5 | ./hexpipe) 2>debug'
+	expect -- card.exp sh -c 'stty raw -echo; (./unhexpipe | ./$< 5000 5 | ./hexpipe) 2>debug'
 
 %.s: %.c
 	$(CC) -S -Wall -Wextra -g0 -O3 -fno-plt -fno-asynchronous-unwind-tables -o $@ $<
