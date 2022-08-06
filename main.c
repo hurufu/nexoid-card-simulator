@@ -7,13 +7,20 @@
 #include <signal.h>
 #include "log.h"
 #include "util.h"
+#include <stdio.h>
 
 struct args {
     int timeout;
 };
 
+enum OutputType {
+    OUTPUT_TYPE_RAW,
+    OUTPUT_TYPE_HEX
+};
+
 static int g_event_pipe[2] = { -1, -1 };
 static enum LogLevel g_log_level = LOG_FATAL;
+static enum OutputType g_ouptut_type = OUTPUT_TYPE_HEX;
 
 static const char* mode_tostring(const unsigned char mode) {
     switch (mode) {
@@ -24,10 +31,34 @@ static const char* mode_tostring(const unsigned char mode) {
     return NULL;
 }
 
+static inline char hex(const unsigned char n) {
+    return n + (n <= 9 ? '0' : ('A' - 10));
+}
+
 static void sig_handler(const int sig) {
     (void)sig;
     close(STDOUT_FILENO);
 }
+
+static void write_raw_data(const unsigned int length, const unsigned char data[static const length]) {
+    if (write(STDOUT_FILENO, data, length) != length)
+        LOGW("> Can't write received NFC data to stdout");
+    else
+        LOGDX("> Data was received and forwarded (length %u)", length);
+};
+
+static void write_hex_data(const unsigned int length, const unsigned char data[static const length]) {
+    char buf[length + 1][3];
+    for (unsigned int i = 0; i < length; i++) {
+        buf[i][0] = hex((data[i] & 0xF0) >> 4);
+        buf[i][1] = hex(data[i] & 0x0F);
+        buf[i][2] = ' ';
+    }
+    buf[length][0] = '\r';
+    buf[length][1] = '\n';
+    buf[length][2] = '\0';
+    write_raw_data(sizeof(buf), (unsigned char*)buf);
+};
 
 static void on_host_card_emulation_activated(const unsigned char mode) {
     if (write(g_event_pipe[1], &mode, 1) != 1)
@@ -37,10 +68,12 @@ static void on_host_card_emulation_activated(const unsigned char mode) {
 }
 
 static void on_data_received(unsigned char* const data, const unsigned int length) {
-    if (write(STDOUT_FILENO, data, length) != length)
-        LOGW("> Can't write received NFC data to stdout");
-    else
-        LOGDX("> Data was received and forwarded (length %u)", length);
+    switch (g_ouptut_type) {
+        case OUTPUT_TYPE_RAW:
+            return write_raw_data(length, data);
+        case OUTPUT_TYPE_HEX:
+            return write_hex_data(length, data);
+    }
 }
 
 static void on_host_card_emulation_deactivated(void) {
