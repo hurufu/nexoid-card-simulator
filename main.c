@@ -116,6 +116,9 @@ static void main_loop(const int timeout_ms) {
             pf_size = 2;
             pf[2].revents = 0;
         }
+#       if 1
+        sleep(1);
+#       endif
     }
     const int fd[] = { STDIN_FILENO, STDOUT_FILENO, g_event_pipe[0], g_event_pipe[1] };
     for (size_t i = 0; i < elementsof(fd); i++)
