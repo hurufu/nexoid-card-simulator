@@ -8,12 +8,6 @@ proc get_sw1sw2 {what} {
     }
 }
 
-proc send_expect {what} {
-    set sw1sw2 [get_sw1sw2 $what]
-    send "\n$sw1sw2\n"
-    expect -re "\\s*${sw1sw2}\\s+"
-}
-
 for {set a 0} {$a < 10} {incr a} {
     expect {
         -re ^(..)(..)(..)(..)(..) {
@@ -30,9 +24,10 @@ for {set a 0} {$a < 10} {incr a} {
                         D2760000850101 {set rc not_found}
                         D2760000850100 {set rc ok}
                         E103           {set rc not_found}
+                        2PAY.SYS.DDF01 {set rc ok}
                         default        exit
                     }
-                    send_expect $rc
+                    send [get_sw1sw2 $rc]
                 }
                 default exit
             }
