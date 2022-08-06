@@ -1,0 +1,42 @@
+spawn {*}$argv
+
+proc get_sw1sw2 {what} {
+    switch $what {
+        not_found {return 6A82}
+        ok        {return 9000}
+        default   {return 0000}
+    }
+}
+
+proc send_expect {what} {
+    set sw1sw2 [get_sw1sw2 $what]
+    send "\n$sw1sw2\n"
+    expect -re "\\s*${sw1sw2}\\s+"
+}
+
+for {set a 0} {$a < 10} {incr a} {
+    expect {
+        -re ^(..)(..)(..)(..)(..) {
+            set Cla $expect_out(1,string)
+            set Ins $expect_out(2,string)
+            set P1  $expect_out(3,string)
+            set P2  $expect_out(4,string)
+            set Lc  $expect_out(5,string)
+            switch "$Cla$Ins" {
+                00A4 {
+                    expect -re ([string repeat .. $Lc])(..)?
+                    set aid $expect_out(1,string)
+                    switch $aid {
+                        D2760000850101 {set rc not_found}
+                        D2760000850100 {set rc ok}
+                        E103           {set rc not_found}
+                        default        exit
+                    }
+                    send_expect $rc
+                }
+                default exit
+            }
+        }
+        default exit
+    }
+}

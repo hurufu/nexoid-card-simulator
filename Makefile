@@ -1,4 +1,4 @@
-.PHONY: clean dump-apdu dump-hex
+.PHONY: clean dump-apdu dump-hex script
 
 LDLIBS    = $(shell pkg-config --libs libnfc-nci)
 CFLAGS   := -Wall -Wextra -ggdb3 -Og -pthread
@@ -7,11 +7,13 @@ dump-hex: main
 	while sleep 3; do printf '\x6A\x82'; done | ./$< 5000 5 | od -Ad -tx1z
 dump-apdu: main hexpipe apdu
 	while sleep 1; do printf '\x6A\x82'; sleep 1; done | ./$< 5000 5 > apdu
-clean: F := $(wildcard main apdu hexpipe *.s)
+clean: F := $(wildcard main apdu hexpipe unhexpipe debug *.s)
 clean:
 	-$(if $(strip $F),$(RM) -- $F,)
-apdu:
+apdu debug:
 	mkfifo -- $@
+script: main card.exp debug hexpipe unhexpipe
+	expect -- card.exp sh -c '(stdbuf -i0 -o0 tr -d " \r\n\t" | ./unhexpipe | ./$< 5000 5 | ./hexpipe) 2>debug'
 
 %.s: %.c
 	$(CC) -S -Wall -Wextra -g0 -O3 -fno-plt -fno-asynchronous-unwind-tables -o $@ $<

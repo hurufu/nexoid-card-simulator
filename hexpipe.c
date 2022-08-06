@@ -11,7 +11,7 @@ int main() {
         unsigned char c;
         if ((rc = read(0, &c, 1)) != 1)
             break;
-        if ((rc = (write(1, (char[]){ hex((c & 0xF0) >> 4), hex(c & 0x0F), ' ' }, 3) != 3)))
+        if ((rc = (write(1, (char[]){ hex((c & 0xF0) >> 4), hex(c & 0x0F) }, 2) != 2)))
             break;
     }
     err(rc, NULL);
