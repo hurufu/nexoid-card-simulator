@@ -1,10 +1,12 @@
-#include <fcntl.h>
+#define _GNU_SOURCE
+
 #include <fcntl.h>
 #include <linux_nfc_api.h>
 #include <poll.h>
 #include <unistd.h>
 #include <string.h>
 #include <signal.h>
+#include <string.h>
 #include "log.h"
 #include "util.h"
 
@@ -47,7 +49,7 @@ static void on_host_card_emulation_deactivated(void) {
 #   if 1
     // Ugly workaround for the NFC Tools app
     static int count = 0;
-    if ((++count % 4) == 0)
+    if ((++count % 6) == 0)
         close(g_event_pipe[1]);
 #   else
     close(g_event_pipe[1]);
@@ -75,6 +77,8 @@ static void main_loop(const int timeout_ms) {
     nfds_t pf_size = 2;
     int poll_res;
     LOGIX("HCE is active – waiting for a reader...");
+    unsigned char r_apdu_buf[255];
+    ssize_t r_apdu_len = 0;
     while ((poll_res = poll(pf, pf_size, timeout_ms)) > 0) {
         if (pf[0].revents & POLLNVAL) {
             LOGEX("Error in the event pipe");
@@ -100,16 +104,19 @@ static void main_loop(const int timeout_ms) {
             break;
         }
         if (pf[2].revents & POLLRDNORM) {
-            unsigned char buf[255];
-            ssize_t s = read(pf[2].fd, buf, sizeof(buf));
+            const ssize_t s = read(pf[2].fd, r_apdu_buf + r_apdu_len, sizeof(r_apdu_buf) - r_apdu_len);
             if (s < 0)
                 LOGF("Can't read from fd %d", pf[2].fd);
-            const int rs = nfcHce_sendCommand(buf, s);
-            if (rs != 0) {
-                LOGEX("Can't send NFC command (%#x)", rs);
-                break;
+            r_apdu_len += s;
+            if (memmem(r_apdu_buf, r_apdu_len, (unsigned char[]){0xDE,0xAD,0xBE,0xAF}, 4)) {
+                const int rs = nfcHce_sendCommand(r_apdu_buf, r_apdu_len - 4);
+                if (rs != 0) {
+                    LOGEX("Can't send NFC command (%#x)", rs);
+                    break;
+                }
+                LOGDX("Response was sent to the reader   (length %zd)", r_apdu_len - 4);
+                r_apdu_len = 0;
             }
-            LOGDX("Response was sent to the reader   (length %zd)", s);
         }
         if (pf[2].revents & POLLHUP) {
             LOGWX("Response pipe is closed – no more responses will be served");

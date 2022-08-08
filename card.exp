@@ -1,7 +1,7 @@
 spawn {*}$argv
 
-set not_found 6A82
-set ok        9000
+set not_found 6A82DEADBEAF
+set ok        9000DEADBEAF
 
 for {set i 0} {$i < 20} {incr i} {
     foreach {a} {Cla Ins P1 P2 Lc} {
