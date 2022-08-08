@@ -108,7 +108,7 @@ static void main_loop(const int timeout_ms) {
             if (s < 0)
                 LOGF("Can't read from fd %d", pf[2].fd);
             r_apdu_len += s;
-            if (memmem(r_apdu_buf, r_apdu_len, (unsigned char[]){0xDE,0xAD,0xBE,0xAF}, 4)) {
+            if (memmem(r_apdu_buf, r_apdu_len, (unsigned char[]){0xAD,0xDE,0xDB,0xAD,0xC0,0xDE}, 4)) {
                 const int rs = nfcHce_sendCommand(r_apdu_buf, r_apdu_len - 4);
                 if (rs != 0) {
                     LOGEX("Can't send NFC command (%#x)", rs);
