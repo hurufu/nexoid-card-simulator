@@ -1,7 +1,10 @@
 .PHONY: clean dump-apdu dump-hex script
 
-LDLIBS    = $(shell pkg-config --libs libnfc-nci)
-CFLAGS   := -Wall -Wextra -ggdb3 -Og -pthread
+CPPFLAGS    :=
+CFLAGS      := -Wall -Wextra -ggdb3 -Os -pipe
+TARGET_ARCH := -march=native -mtune=native
+LDFLAGS     := -fhardened
+LDLIBS       = $(shell pkg-config --libs libnfc-nci)
 
 dump-hex: main
 	while sleep 3; do printf '\x6A\x82'; done | ./$< 5000 5 | od -Ad -tx1z
@@ -13,7 +16,9 @@ clean:
 apdu debug:
 	mkfifo -- $@
 script: main card.exp debug hexpipe unhexpipe
-	expect -- card.exp sh -c 'stty raw -echo; (./unhexpipe | ./$< 5000 5 | ./hexpipe) 2>debug'
+	expect -- card.exp sh -c 'stty raw -echo; (./unhexpipe | ./$< 180000 5 | ./hexpipe) 2>debug'
+hce: hce.c
+	$(LINK.c) -o $@ $< $(LDLIBS)
 
 %.s: %.c
 	$(CC) -S -Wall -Wextra -g0 -O3 -fno-plt -fno-asynchronous-unwind-tables -o $@ $<
