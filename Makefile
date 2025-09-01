@@ -22,3 +22,19 @@ hce: hce.c
 
 %.s: %.c
 	$(CC) -S -Wall -Wextra -g0 -O3 -fno-plt -fno-asynchronous-unwind-tables -o $@ $<
+
+PROLOG := scryer-prolog
+.PHONY: start
+start: start-hce start-sim
+inter: start-hce start-int
+start-hce: hce | in.fifo out.fifo
+	exec ./$< >in.fifo <out.fifo
+start-sim: sim | in.fifo out.fifo
+	exec ./$<
+start-int: | in.fifo out.fifo
+	exec $(PROLOG) c.pl -g 'run("in.fifo", "out.fifo", []).'
+sim: c.pl g.pl
+	gplc --fast-math --no-top-level --min-fd-bips --no-fd-lib --strip -C '$(CFLAGS) $(TARGET_ARCH)' -L '$(LDFLAGS)' --output $@ $^
+
+%.fifo:
+	mkfifo -- $@
