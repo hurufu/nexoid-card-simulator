@@ -147,7 +147,7 @@ int main() {
             break;
         }
         if (FD_ISSET(s_data_rd, &rd)) {
-            usleep(100 * 1000);
+            usleep(10 * 1000);
             const ssize_t l = read(s_data_rd, buf, sizeof buf);
             if (l < 0) {
                 PR(LOG_ERR, "Can't read from fd %d: %m", s_data_rd);
