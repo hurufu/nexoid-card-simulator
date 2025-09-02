@@ -1,13 +1,13 @@
-.PHONY: clean dump-apdu dump-hex script
+CPPFLAGS       :=
+CFLAGS         := -Wall -Wextra -ggdb3 -Os -pipe
+TARGET_ARCH    := -march=native -mtune=native
+ASFLAGS        :=
+TARGET_MACH    := --64
+LDFLAGS        := -fhardened -Whardened
+PROLOG         := scryer-prolog
+GPROLOG_LIBDIR := /usr/share/gprolog/lib
 
-CPPFLAGS    :=
-CFLAGS      := -Wall -Wextra -ggdb3 -Os -pipe
-TARGET_ARCH := -march=native -mtune=native
-LDFLAGS     := -fhardened
-LDLIBS       = $(shell pkg-config --libs libnfc-nci)
-PROLOG      := scryer-prolog
-
-.PHONY: start clean build
+.PHONY: start clean build start-hce start-int inter
 
 build: hce sim
 start: start-hce start-sim
@@ -18,16 +18,23 @@ start-sim: sim | in.fifo out.fifo
 	exec ./$<
 start-int: | in.fifo out.fifo
 	exec $(PROLOG) c.pl
-clean: F := $(wildcard hce sim *.s *.o *.fifo)
+clean: F := $(wildcard hce sim *.s *.o *.fifo *.wam *.ma)
 clean:
-	-$(if $(strip $F),$(RM) -- $F,)
+	$(if $(strip $F),$(RM) -- $F)
 
+hce: LDLIBS = $(shell pkg-config --libs libnfc-nci)
 hce: hce.c
 	$(LINK.c) -o $@ $< $(LDLIBS)
-sim: c.pl
-	gplc --fast-math --no-top-level --min-fd-bips --no-fd-lib --strip -C '$(CFLAGS) $(TARGET_ARCH)' -L '$(LDFLAGS)' --output $@ $^
+sim: LDLIBS  := $(GPROLOG_LIBDIR)/all_pl_bips.o -lbips_pl -lengine_pl -llinedit -lm
+sim: LDFLAGS += -L$(GPROLOG_LIBDIR)
+sim: sim.o
+	$(LINK.o) -o $@ $< $(LDLIBS)
 
+%.wam: %.pl
+	pl2wam --wam-for-native --fast-math -o $@ $<
+%.ma: %.wam
+	wam2ma -o $@ $<
+%.s: %.ma
+	ma2asm -o $@ $<
 %.fifo:
 	mkfifo -- $@
-%.s: %.c
-	$(CC) -S -Wall -Wextra -g0 -O3 -fno-plt -fno-asynchronous-unwind-tables -o $@ $<
