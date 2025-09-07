@@ -16,8 +16,8 @@ start-hce: hce | in.fifo out.fifo
 	exec ./$< >in.fifo <out.fifo
 start-sim: sim | in.fifo out.fifo
 	exec ./$<
-start-int: | in.fifo out.fifo
-	exec $(PROLOG) c.pl
+start-int: sim.pl | in.fifo out.fifo
+	exec $(PROLOG) $<
 clean: F := $(wildcard hce sim *.s *.o *.fifo *.wam *.ma)
 clean:
 	$(if $(strip $F),$(RM) -- $F)
