@@ -7,6 +7,10 @@ LDFLAGS        := -fhardened -Whardened
 PROLOG         := scryer-prolog
 GPROLOG_LIBDIR := /usr/share/gprolog/lib
 
+INIT_scryer-prolog := scryer
+INIT_swipl         := swi
+INIT_gprolog       := gpl
+
 .PHONY: start clean build start-hce start-int inter
 
 build: hce sim
@@ -16,7 +20,7 @@ start-hce: hce | in.fifo out.fifo
 	exec ./$< >in.fifo <out.fifo
 start-sim: sim | in.fifo out.fifo
 	exec ./$<
-start-int: sim.pl | in.fifo out.fifo
+start-int: sim.pl $(INIT_$(PROLOG)) | in.fifo out.fifo
 	exec $(PROLOG) $<
 clean: F := $(wildcard hce sim *.s *.o *.fifo *.wam *.ma)
 clean:
@@ -27,8 +31,8 @@ hce: hce.c
 	$(LINK.c) -o $@ $< $(LDLIBS)
 sim: LDLIBS  := $(GPROLOG_LIBDIR)/all_pl_bips.o -lbips_pl -lengine_pl -llinedit -lm
 sim: LDFLAGS += -L$(GPROLOG_LIBDIR)
-sim: sim.o
-	$(LINK.o) -o $@ $< $(LDLIBS)
+sim: sim.o sim-init-gpl.o
+	$(LINK.o) -o $@ $^ $(LDLIBS)
 
 %.wam: %.pl
 	pl2wam --wam-for-native --fast-math -o $@ $<
