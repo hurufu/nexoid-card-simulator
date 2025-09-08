@@ -1,11 +1,11 @@
-:- initialization(open('in.fifo', read, _, [type(binary),alias(rd),eof_action(eof_code),buffering(none)])).
-:- initialization(open('out.fifo', write, _, [type(binary),alias(wr),eof_action(error),buffering(none)])).
+:- initialization(open('in.fifo',  read,  _, [type(binary),buffer(false),alias(rd),eof_action(eof_code)])).
+:- initialization(open('out.fifo', write, _, [type(binary),buffer(false),alias(wr),eof_action(error)])).
 %:- initialization(main).
 
-main :- exhaust(exchange, X, []), maplist(put_hex, X), nl.
-put_hex(Byte) :- (Byte < 0x10 -> Padding = '0'; Padding = ''), format("~a~16R", [Padding,Byte]).
+main :- phrase(command, [], []), !, main.
 
-command(dbg(Cla,Ins,P1,P2,Tc:Nc,Dt,Te:Le,Rs,Sw1,Sw2)) -->
+command -->
+    { Tc = present(short), Te = Tc },
     get_bytes(rd), [+Cla,+Ins,+P1,+P2], lc(Tc, Nc), cmd(Tc, Nc, Dt), le(Tc, Te, Le),
     { once(response_for(Cla, Ins, P1, P2, Dt, Te, Le, Rs, Sw1, Sw2)) },
     output([Sw1,Sw2]), output(Rs), put_bytes(wr).
@@ -25,8 +25,6 @@ length_(L, N) --> { ground(N), functor(_, t, N) } -> seqn_int(L, N); seqn_var(L,
 seqn_int(L, N) --> { N =:= 0 } -> { L = [] }, []; { L = [H|T], M is N - 1 }, [H], seqn_int(T, M).
 seqn_var([], 0) --> [].
 seqn_var([H|T], N) --> [+H], seqn_var(T, M), { N is M + 1 }.
-%length_([], 0, A, A).
-%length_([H|T], N, A, B) :- N #> 0, M #= N - 1, A = [H|X], length_(T, M, X, B).
 
 output([]) --> [].
 output([H|T]), [-H] --> output(T).
@@ -34,19 +32,9 @@ output([H|T]), [-H] --> output(T).
 in_(+A, A).
 
 get_bytes(Stream, B, A) :-
-    get_byte(Stream, Byte), (Byte >= 0 -> (A = B; A = [+Byte|T], get_bytes(Stream, B, T)); A = B, write(last),nl).
+    get_byte(Stream, Byte), Byte >= 0, A = [+Byte|X], (X = B; get_bytes(Stream, B, X)).
 
 put_bytes(Stream) --> [] | [-Byte], { put_byte(Stream, Byte) }, put_bytes(Stream).
-
-exchange -->
-    getb([Cla,Ins,P1,P2,Lc]), { length(Dt, Lc) }, getb(Dt), getb([Le]),
-    { once(response_for(Cla, Ins, P1, P2, Dt, Le, Rs, Sw1, Sw2)) },
-    putb(Rs), putb([Sw1,Sw2]).
-
-getb(Bytes) --> io(get_byte(rd), Bytes).
-putb(Bytes) --> io(put_byte(wr), Bytes).
-io(Method_1, Bytes) --> { maplist(good(Method_1), Bytes) }, Bytes.
-good(G_1, Byte) :- call(G_1, Byte), Byte >= 0.
 
 response_for(0x00, 0xA4, 0x04, 0x00, Dt, present(_), 0x00, Rs, 0x90, 0x00) :-
     Dt = [50,80,65,89,46,83,89,83,46,68,68,70,48,49], % 2PAY.SYS.DDF01
@@ -59,6 +47,3 @@ response_for(0x00, 0xA4, 0x04, 0x00, Dt, present(_), 0x00, [], 0x6A, 0x82) :- Dt
 response_for(0x80, 0xA8, 0x00, 0x00, Dt, present(_), 0x00, Rs, 0x90, 0x00) :- Dt = [0x83,0x10,0x36,_,0x40,0,0,0,0,0,_,_,_,_,_,_,_,_],
     Rs = [119,61,87,16,71,97,115,144,1,1,1,25,210,65,34,1,23,88,148,114,130,2,0,0,95,52,1,1,159,16,7,6,1,17,3,160,0,0,159,38,8,19,201,29,101,169,16,201,86,159,39,1,128,159,54,2,0,2,159,108,2,128,0].
 response_for(_, _, _, _, _, present(_), Le, Rs, 0x68, 0x00) :- length(Rs, Le).
-
-exhaust(G_2, Curr, Last) :-
-    phrase(G_2, Curr, Next) -> exhaust(G_2, Next, Last); Curr = Last.
