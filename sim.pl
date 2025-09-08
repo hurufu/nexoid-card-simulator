@@ -5,7 +5,6 @@
 main :- phrase(command, [], []), !, main.
 
 command -->
-    { Tc = present(short), Te = Tc },
     get_bytes(rd), [+Cla,+Ins,+P1,+P2], lc(Tc, Nc), cmd(Tc, Nc, Dt), le(Tc, Te, Le),
     { once(response_for(Cla, Ins, P1, P2, Dt, Te, Le, Rs, Sw1, Sw2)) },
     output([Sw1,Sw2]), output(Rs), put_bytes(wr).
