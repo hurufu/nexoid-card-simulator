@@ -1,6 +1,4 @@
-:- initialization(main).
-
-main :- phrase(command, [], []), !, main.
+main :- phrase(command, []) -> main; true.
 
 command -->
     get_bytes(rd), [+Cla,+Ins,+P1,+P2], lc(Tc, Nc), cmd(Tc, Nc, Dt), le(Tc, Te, Le),
@@ -21,7 +19,7 @@ le(absent, present(extended), Ne) --> [+ 0,+L1,+L2], { Ne is (L1 << 8) + L2 }.
 length_(L, N) --> { ground(N), functor(_, t, N) } -> seqn_int(L, N); seqn_var(L, N).
 seqn_int(L, N) --> { N =:= 0 } -> { L = [] }, []; { L = [H|T], M is N - 1 }, [H], seqn_int(T, M).
 seqn_var([], 0) --> [].
-seqn_var([H|T], N) --> [+H], seqn_var(T, M), { N is M + 1 }.
+seqn_var([H|T], N) --> [H], seqn_var(T, M), { N is M + 1 }.
 
 output([]) --> [].
 output([H|T]), [-H] --> output(T).
@@ -33,8 +31,7 @@ get_bytes(Stream, B, A) :-
 
 put_bytes(Stream) --> [] | [-Byte], { put_byte(Stream, Byte) }, put_bytes(Stream).
 
-response_for(0x00, 0xA4, 0x04, 0x00, Dt, present(_), 0x00, Rs, 0x90, 0x00) :-
-    Dt = [50,80,65,89,46,83,89,83,46,68,68,70,48,49], % 2PAY.SYS.DDF01
+response_for(0x00, 0xA4, 0x04, 0x00, Dt, present(_), 0x00, Rs, 0x90, 0x00) :- Dt = [50,80,65,89,46,83,89,83,46,68,68,70,48,49], % 2PAY.SYS.DDF01
     Rs = [111,45,132,14,50,80,65,89,46,83,89,83,46,68,68,70,48,49,165,27,191,12,24,97,22,79,7,160,0,0,0,3,16,16,80,11,86,73,83,65,32,67,82,69,68,73,84].
 response_for(0x00, 0xA4, 0x04, 0x00, Dt, present(_), 0x00, Rs, 0x90, 0x00) :- Dt = [0xA0,0x00,0x00,0x00,0x03,0x10,0x10],
     Rs = [111,50,132,7,160,0,0,0,3,16,16,165,39,80,11,86,73,83,65,32,67,82,69,68,73,84,159,56,12,159,102,4,159,2,6,95,42,2,159,55,4,191,12,8,159,90,5,0,8,64,8,64].

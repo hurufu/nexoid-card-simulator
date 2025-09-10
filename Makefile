@@ -20,7 +20,7 @@ start-hce: hce | in.fifo out.fifo
 	exec ./$< >in.fifo <out.fifo
 start-sim: sim | in.fifo out.fifo
 	exec ./$<
-start-int: sim.pl $(INIT_$(PROLOG)) | in.fifo out.fifo
+start-int: sim.pl card.pl sim-init.pl $(INIT_$(PROLOG)) | in.fifo out.fifo
 	exec $(PROLOG) $<
 clean: F := $(wildcard hce sim *.s *.o *.fifo *.wam *.ma)
 clean:
@@ -31,7 +31,7 @@ hce: hce.c
 	$(LINK.c) -o $@ $< $(LDLIBS)
 sim: LDLIBS  := $(GPROLOG_LIBDIR)/all_pl_bips.o -lbips_pl -lengine_pl -llinedit -lm
 sim: LDFLAGS += -L$(GPROLOG_LIBDIR)
-sim: sim.o sim-init-gpl.o
+sim: sim.o card.o sim-init.o sim-init-gpl.o
 	$(LINK.o) -o $@ $^ $(LDLIBS)
 
 %.wam: %.pl
