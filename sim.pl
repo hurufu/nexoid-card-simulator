@@ -1,30 +1,33 @@
-main :- phrase(command, []) -> main; true.
+main :- phrase(exchange, []) -> main; true.
 
-command -->
-    get_bytes(rd), [+Cla,+Ins,+P1,+P2], lc(Tc, Nc), cmd(Tc, Nc, Dt), le(Tc, Te, Le),
-    { once(response_for(Cla, Ins, P1, P2, Dt, Te, Le, Rs, Sw1, Sw2)) },
-    output([Sw1,Sw2]), output(Rs), put_bytes(wr).
+exchange --> get_bytes(rd), command_response_pair, put_bytes(wr).
 
+% section 5.1
+command_response_pair -->
+    hdr(Hdr, Tc), lc(Tc, Nc), cmd(Tc, Nc, Dt), le(Tc, Te, Le), response(Hdr, Te, Le).
+
+hdr(Hdr, Tc) --> [+Cla,+Ins,+P1,+P2], { header_meaning(Cla, Ins, P1, P2, Hdr, Tc) }.
 lc(absent, 0) --> [].
-lc(present(Tc), Nc) --> [+L0], ({ L0 > 0 } -> { Tc = short, Nc = L0 }; [+L1,+L2], { Tc = extended, Nc is (L1 << 8) + L2 }).
-
+lc(present(Tc), Nc) --> [+L0], ({ L0 > 0 } -> { Tc = short, Nc = L0 }; [+L1,+L2], { Tc = extended, Nc is (L1 << 8) + L2, Nc > 0 }).
 cmd(absent, 0, []) --> [].
 cmd(present(_), Nc, Bytes) --> length_(L, Nc), { maplist(in_, L, Bytes) }.
-
+in_(+A, A).
 le(_, absent, 0) --> [].
 le(present(short), present(short), Ne) --> [+Le], { Ne is Le }.
 le(present(extended), present(extended), Ne) --> [+L1,+L2], { Ne is (L1 << 8) + L2 }.
 le(absent, present(extended), Ne) --> [+ 0,+L1,+L2], { Ne is (L1 << 8) + L2 }.
 
+% logical channel not supported
+response(command(cla(interindustry,[channel(_),_,_]),_)), [-(0x68),-(0x81)] --> [].
+% secure messaging not supported
+response(command(cla(interindustry,[_,_,secm(_)]),_)), [-(0x68),-(0x82)] --> [].
+% command chaining not supported
+response(command(cla(interindustry,[_,partial,_]),_)), [-(0x68),-(0x83)] --> [].
+
 length_(L, N) --> { ground(N), functor(_, t, N) } -> seqn_int(L, N); seqn_var(L, N).
 seqn_int(L, N) --> { N =:= 0 } -> { L = [] }, []; { L = [H|T], M is N - 1 }, [H], seqn_int(T, M).
 seqn_var([], 0) --> [].
 seqn_var([H|T], N) --> [H], seqn_var(T, M), { N is M + 1 }.
-
-output([]) --> [].
-output([H|T]), [-H] --> output(T).
-
-in_(+A, A).
 
 get_bytes(Stream, B, A) :-
     get_byte(Stream, Byte), Byte >= 0, A = [+Byte|X], (X = B; get_bytes(Stream, B, X)).

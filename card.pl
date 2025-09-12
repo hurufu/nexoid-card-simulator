@@ -1,4 +1,4 @@
-:- initialization(db_consistent).
+%:- initialization(db_consistent).
 
 % Database ft - fid_type, pc - parent_child, fn - fid_dfname, pp - property,
 %          fd - fid_data, fx - fid_data_referencing_method.
@@ -100,3 +100,128 @@ tag_db(0x6F, 0x6F, fci, 'File Control Information (FCI)', 't..').
 % Utils
 all_different([]).
 all_different([H|T]) :- maplist(\=(H), T), all_different(T).
+
+header_meaning(Cla, Ins, P1, P2, Tc, command(cla(Class,ClaMeaning),InsMeaning)) :-
+    cla_description(Cla, Class, ClaMeaning),
+    ins_description(Ins, P1, P2, Tc, Class, InsMeaning).
+
+ins_meaning(Class, Ins, P1, P2, Tc, ins(I,D,O,R)) :-
+    ins(Class, Ins, I),
+    bits(P1Bits, P1, 8),
+    bits(P2Bits, P2, 8),
+    p1(I, P1Bits, Tc, D),
+    p2(I, P2Bits, occurrence(O)),
+    p2(I, P2Bits, return(R)).
+
+%% cla_meaning(+Cla, -Class, -ClaMeaning) is det.
+%
+cla_meaning(Cla, Class, ClaMeaning) :-
+    bits(Bits, Cla, 8),
+    once(cla_meaning_(Bits, Class, ClaMeaning)).
+
+cla_meaning_(Bits, proprietary(T), []) :-
+    cla_property(Bits, class(proprietary(T))).
+cla_meaning_(Bits, interindustry, [Channel,Chaining,Secure]) :-
+    cla_property(Bits, class(interindustry)),
+    cla_property(Bits, logical_channel(Channel)),
+    cla_property(Bits, chaining_control(Chaining)),
+    cla_property(Bits, secure_messaging(Secure)).
+
+%% cla_property(?Bits, ?Property).
+%
+% @see ISO 7816-4 table 2 and 3
+%
+cla_property([0,0,0,_,_,_,A,B], logical_channel(channel(N))) :- channel_supported, N is A << 1 + B.
+cla_property([0,0,0,_,_,_,0,0], logical_channel(default)) :- \+ channel_supported.
+cla_property([0,0,0,_,0,0,_,_], secure_messaging(none)).
+cla_property([0,0,0,_,0,1,_,_], secure_messaging(secm(proprietary))).
+cla_property([0,0,0,_,1,0,_,_], secure_messaging(secm(not_processed))).
+cla_property([0,0,0,_,1,1,_,_], secure_messaging(secm(authenticated))).
+cla_property([0,0,0,0,_,_,_,_], chaining_control(complete)).
+cla_property([0,0,0,1,_,_,_,_], chaining_control(partial)).
+cla_property([0,1,0,_,_,_,_,_], secure_messaging(none)).
+cla_property([0,1,1,_,_,_,_,_], secure_messaging(secm(not_processed))).
+cla_property([0,1,_,_,A,B,C,D], logical_channel(channel(N))) :- channel_supported, N is A << 3 + B << 2 + C << 1 + D.
+cla_property([0,1,_,_,0,0,0,0], logical_channel(default)) :- \+ channel_supported.
+cla_property([0,1,_,0,_,_,_,_], chaining_control(complete)).
+cla_property([0,1,_,1,_,_,_,_], chaining_control(partial)).
+cla_property([0,_,_,_,_,_,_,_], class(interindustry)).
+cla_property([1,A,B,C,D,E,F,G], class(proprietary(emv))) :-  member(0, [A,B,C,D,E,F,G]).
+
+:- dynamic(channel_supported/0).
+
+%% instruction(Disposition, Ins, Name).
+%
+ins(interindustry, 0x04, deactivate_file).
+ins(interindustry, 0x0C, erase_record).
+ins(interindustry, X,    erase_binary) :- X = 0x0E; X = 0x0F.
+ins(interindustry, 0x10, perform_scql_operation).
+ins(interindustry, 0x12, perform_transaction_operation).
+ins(interindustry, 0x14, perform_user_operation).
+ins(interindustry, X,    verify) :- X = 0x20; X = 0x21.
+ins(interindustry, 0x22, manage_security_environment).
+ins(interindustry, 0x24, change_reference_data).
+ins(interindustry, 0x26, enable_verification_requirement).
+ins(interindustry, 0x28, disable_verification_requirement).
+ins(interindustry, 0x2A, perform_security_operation).
+ins(interindustry, 0x2C, reset_retry_counter).
+ins(interindustry, 0x44, activate_file).
+ins(interindustry, 0x46, generate_asymmetric_key_pair).
+ins(interindustry, 0x70, manage_channel).
+ins(interindustry, 0x82, external_authenticate). % Also mutual_authenticate
+ins(interindustry, 0x84, get_challenge).
+ins(interindustry, X,    general_authenticate) :- X = 0x86; X = 0x87.
+ins(interindustry, 0x88, intenral_authenticate).
+ins(interindustry, X,    search_binary) :- X = 0xA0; X = 0xA1.
+ins(interindustry, 0xA2, search_record).
+ins(interindustry, 0xA4, select).
+ins(interindustry, X,    read_binary) :- X = 0xB0; X = 0xB1.
+ins(interindustry, X,    read_record) :- X = 0xB2; X = 0xB3.
+ins(interindustry, 0xC0, get_response).
+ins(interindustry, X,    envelope) :- X = 0xC2; X = 0xC3.
+ins(interindustry, X,    get_data) :- X = 0xCA; X = 0xCB.
+ins(interindustry, X,    write_binary) :- X = 0xD0; X = 0xD1.
+ins(interindustry, 0xD2, write_record).
+ins(interindustry, X,    update/binary) :- X = 0xD6; X = 0xD7.
+ins(interindustry, X,    put_data) :- X = 0xDA; X = 0xDB.
+ins(interindustry, X,    update_record) :- X = 0xDC; X = 0xDD.
+ins(interindustry, 0xE0, create_file).
+ins(interindustry, 0xE2, append_record).
+ins(interindustry, 0xE4, delete_file).
+ins(interindustry, 0xE6, terminate_df).
+ins(interindustry, 0xE8, terminate_ef).
+ins(interindustry, 0xFE, terminate_card_usage).
+%ins(interindustry, X,    invalid_command) :- X /\ 0x60 + X /\ 0x90 =\= 0.
+ins(proprietary(emv), 0xA8, get_processing_options).
+
+
+% table 39
+p1(select, [0,0,0,0,0,0,0,0], present(_), fid(_)). % file (MF, DF, EF) identifier
+p1(select, [0,0,0,0,0,0,0,0], absent,     absent).
+p1(select, [0,0,0,0,0,0,0,1], present(_), did(_)). % DF identifier
+p1(select, [0,0,0,0,0,0,1,0], present(_), eid(_)). % EF identifier
+p1(select, [0,0,0,0,0,0,1,1], absent,     absent).
+p1(select, [0,0,0,0,0,1,0,0], present(_), aid_prefix(_)).
+p1(select, [0,0,0,0,1,0,0,0], present(_), path(mf, _)). % Path without the MF identifier
+p1(select, [0,0,0,0,1,0,0,1], present(_), path(df, _)). % Path without the current DF identifier
+
+% table 40
+p2(select, [0,0,0,0,_,_,0,0], occurrence(first)).
+p2(select, [0,0,0,0,_,_,0,1], occurrence(last)).
+p2(select, [0,0,0,0,_,_,1,0], occurrence(next)).
+p2(select, [0,0,0,0,_,_,1,1], occurrence(previous)).
+p2(select, [0,0,0,0,0,0,_,_], _,          return(fci)). % Return FCI template
+p2(select, [0,0,0,0,0,1,_,_], present(_), return(fcp)).
+p2(select, [0,0,0,0,1,0,_,_], present(_), return(fmd)).
+p2(select, [0,0,0,0,1,1,_,_], absent,     return(absent)).
+p2(select, [0,0,0,0,1,1,_,_], present,    return(proprietary)).
+
+
+%% bits(Bits, Number, Exponent) is multi.
+%
+bits(RBits, N, Exp) :-
+    length(Bits, Exp),
+    reverse(Bits, RBits),
+    foldl(bb(N), Bits, 0, Exp), 1 << Exp > N.
+
+bb(Byte, Bit, Exp, NextExp) :- Bit is (Byte /\ 1 << Exp) >> Exp, NextExp is Exp + 1.

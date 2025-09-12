@@ -11,7 +11,7 @@ INIT_scryer-prolog := scryer
 INIT_swipl         := swi
 INIT_gprolog       := gpl
 
-.PHONY: start clean build start-hce start-int inter
+.PHONY: start clean build start-hce start-int inter check
 
 build: hce sim
 start: start-hce start-sim
@@ -22,6 +22,8 @@ start-sim: sim | in.fifo out.fifo
 	exec ./$<
 start-int: sim.pl card.pl sim-init.pl $(INIT_$(PROLOG)) | in.fifo out.fifo
 	exec $(PROLOG) $<
+check: sim.pl card.pl sim-ut.pl
+	exec $(PROLOG) -g 'halt' $^
 clean: F := $(wildcard hce sim *.s *.o *.fifo *.wam *.ma)
 clean:
 	$(if $(strip $F),$(RM) -- $F)
