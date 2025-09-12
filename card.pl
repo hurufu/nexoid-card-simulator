@@ -102,8 +102,8 @@ all_different([]).
 all_different([H|T]) :- maplist(\=(H), T), all_different(T).
 
 header_meaning(Cla, Ins, P1, P2, Tc, command(cla(Class,ClaMeaning),InsMeaning)) :-
-    cla_description(Cla, Class, ClaMeaning),
-    ins_description(Ins, P1, P2, Tc, Class, InsMeaning).
+    cla_meaning(Cla, Class, ClaMeaning),
+    ins_meaning(Class, Ins, P1, P2, Tc, InsMeaning).
 
 ins_meaning(Class, Ins, P1, P2, Tc, ins(I,D,O,R)) :-
     ins(Class, Ins, I),
@@ -111,7 +111,7 @@ ins_meaning(Class, Ins, P1, P2, Tc, ins(I,D,O,R)) :-
     bits(P2Bits, P2, 8),
     p1(I, P1Bits, Tc, D),
     p2(I, P2Bits, occurrence(O)),
-    p2(I, P2Bits, return(R)).
+    p2(I, P2Bits, _, return(R)).
 
 %% cla_meaning(+Cla, -Class, -ClaMeaning) is det.
 %
