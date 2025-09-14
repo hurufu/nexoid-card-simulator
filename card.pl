@@ -1,7 +1,7 @@
 %:- initialization(db_consistent).
 
-% Database ft - fid_type, pc - parent_child, fn - fid_dfname, pp - property,
-%          fd - fid_data, fx - fid_data_referencing_method.
+%% ft(Fid, Type).
+%
 ft(16128, mf).
 ft(28677, df).
 ft(28673, adf).
@@ -10,23 +10,38 @@ ft(28675, ef).
 ft(28676, adf).
 ft(0x2F00, ef).
 ft(0x2F01, ef).
+
+%% pc(Parent, Child).
+%
 pc(28677, 28673).
 pc(28677, 28676).
 pc(28676, 28674).
 pc(28676, 28675).
 pc(16128, 0x2F00).
 pc(16128, 0x2F01).
-fn(28677, "2PAY.SYS.DDF01", ascii).
-fn(28673, "A0000001523010", hex).
-fn(28676, "A000000324101001", hex).
-fn(0x2F00, "EF.DIR", ascii).
-fn(0x2F01, "EF.ATR", ascii).
-pp(28673, 0x4F, "A0000001523010", hex).
-pp(28676, 0x4F, "A000000324101001", hex).
-pp(28673, 0x50, "ContactlessDPAS", ascii).
-pp(28676, 0x50, "Discover", ascii).
+
+%% fn(Fid, DFName).
+%
+fn(28677, [50,80,65,89,46,83,89,83,46,68,68,70,48,49]). % 2PAY.SYS.DDF01
+fn(28673, [0xA0,0x00,0x00,0x01,0x52,0x30,0x10]).
+fn(28676, [0xA0,0x00,0x00,0x00,0x03,0x24,0x10,0x10,0x01]).
+fn(0x2F00, [0x45,0x46,0x2e,0x44,0x49,0x52]). % EF.DIR
+fn(0x2F01, [0x45,0x46,0x2e,0x41,0x54,0x52]). % EF.ATR
+
+%% pp(Fid, Property, Value).
+%
+pp(28673, 0x4F, [0xA0,0x00,0x00,0x01,0x52,0x30,0x10]).
+pp(28676, 0x4F, [0xA0,0x00,0x00,0x03,0x24,0x10,0x10,0x01]).
+pp(28673, 0x50, [0x43,0x6f,0x6e,0x74,0x61,0x63,0x74,0x6c,0x65,0x73,0x73,0x44,0x50,0x41,0x53]). % ContactlessDPAS
+pp(28676, 0x50, [0x44,0x69,0x73,0x63,0x6f,0x76,0x65,0x72]). % Discover
+
+%% fd(Fid, Data).
+%
 fd(28674, [0,0,0,0,0,0,0,0,0,0]).
 fd(28675, [[0,0,0],[0,1,0],[1,1,3],[0,0,0]]).
+
+%% fx(Fid, DataReferencingMethod).
+%
 fx(28674, transparent).
 fx(28674, record).
 fx(28674, fixed).
@@ -41,9 +56,9 @@ type(df, Fid) :- ft(Fid, adf).
 abs(Fid, Path) :- phrase(absolute_path(Fid), Path).
 absolute_path(16128) --> [16128].
 absolute_path(C) --> { nesting(P,C) }, absolute_path(P), [C].
-dfname(Fid, A) :- fn(Fid, A, _).
-property(Fid, 0x50, stratom(A)) :- pp(Fid, 0x50, A, _).
-property(Fid, 0x4F, H) :- pp(Fid, 0x4F, H, _).
+dfname(Fid, A) :- fn(Fid, A).
+property(Fid, 0x50, A) :- pp(Fid, 0x50, A).
+property(Fid, 0x4F, H) :- pp(Fid, 0x4F, H).
 
 % Commands (ISO 7816-4 5.3.1.1)
 instruction(select, by_dfname, Fid, DfName) :- dfname(Fid, DfName).
@@ -64,8 +79,8 @@ x61(Fid, X61) :-
     X61 = 0x61-[aid-Aid,label-Label],
     tag_describe([mnemonic(aid),value(AidT)]),
     tag_describe([mnemonic(label),value(LabelT)]),
-    property(Fid, AidT, hex(Aid)),
-    property(Fid, LabelT, stratom(Label)).
+    property(Fid, AidT, Aid),
+    property(Fid, LabelT, Label).
 
 % Tests
 db_consistent :- duplicates, ambiguous_type, ef_hosts_files, ef_has_dfname.
@@ -101,26 +116,14 @@ tag_db(0x6F, 0x6F, fci, 'File Control Information (FCI)', 't..').
 all_different([]).
 all_different([H|T]) :- maplist(\=(H), T), all_different(T).
 
-header_meaning(Cla, Ins, P1, P2, Tc, command(cla(Class,ClaMeaning),InsMeaning)) :-
-    cla_meaning(Cla, Class, ClaMeaning),
-    ins_meaning(Class, Ins, P1, P2, Tc, InsMeaning).
-
-ins_meaning(Class, Ins, P1, P2, Tc, ins(I,D,O,R)) :-
-    ins(Class, Ins, I),
-    bits(P1Bits, P1, 8),
-    bits(P2Bits, P2, 8),
-    p1(I, P1Bits, Tc, D),
-    p2(I, P2Bits, occurrence(O)),
-    p2(I, P2Bits, _, return(R)).
-
 %% cla_meaning(+Cla, -Class, -ClaMeaning) is det.
 %
 cla_meaning(Cla, Class, ClaMeaning) :-
-    bits(Bits, Cla, 8),
+    bits(8, Bits, Cla),
     once(cla_meaning_(Bits, Class, ClaMeaning)).
 
-cla_meaning_(Bits, proprietary(T), []) :-
-    cla_property(Bits, class(proprietary(T))).
+cla_meaning_(Bits, proprietary, []) :-
+    cla_property(Bits, class(proprietary)).
 cla_meaning_(Bits, interindustry, [Channel,Chaining,Secure]) :-
     cla_property(Bits, class(interindustry)),
     cla_property(Bits, logical_channel(Channel)),
@@ -146,82 +149,93 @@ cla_property([0,1,_,_,0,0,0,0], logical_channel(default)) :- \+ channel_supporte
 cla_property([0,1,_,0,_,_,_,_], chaining_control(complete)).
 cla_property([0,1,_,1,_,_,_,_], chaining_control(partial)).
 cla_property([0,_,_,_,_,_,_,_], class(interindustry)).
-cla_property([1,A,B,C,D,E,F,G], class(proprietary(emv))) :-  member(0, [A,B,C,D,E,F,G]).
+cla_property([1,A,B,C,D,E,F,G], class(proprietary)) :-  member(0, [A,B,C,D,E,F,G]).
 
 :- dynamic(channel_supported/0).
 
-%% instruction(Disposition, Ins, Name).
+%% cm(+Cla, +Ins, +P1, +P2, -Tc, -Te, -Command).
 %
-ins(interindustry, 0x04, deactivate_file).
-ins(interindustry, 0x0C, erase_record).
-ins(interindustry, X,    erase_binary) :- X = 0x0E; X = 0x0F.
-ins(interindustry, 0x10, perform_scql_operation).
-ins(interindustry, 0x12, perform_transaction_operation).
-ins(interindustry, 0x14, perform_user_operation).
-ins(interindustry, X,    verify) :- X = 0x20; X = 0x21.
-ins(interindustry, 0x22, manage_security_environment).
-ins(interindustry, 0x24, change_reference_data).
-ins(interindustry, 0x26, enable_verification_requirement).
-ins(interindustry, 0x28, disable_verification_requirement).
-ins(interindustry, 0x2A, perform_security_operation).
-ins(interindustry, 0x2C, reset_retry_counter).
-ins(interindustry, 0x44, activate_file).
-ins(interindustry, 0x46, generate_asymmetric_key_pair).
-ins(interindustry, 0x70, manage_channel).
-ins(interindustry, 0x82, external_authenticate). % Also mutual_authenticate
-ins(interindustry, 0x84, get_challenge).
-ins(interindustry, X,    general_authenticate) :- X = 0x86; X = 0x87.
-ins(interindustry, 0x88, intenral_authenticate).
-ins(interindustry, X,    search_binary) :- X = 0xA0; X = 0xA1.
-ins(interindustry, 0xA2, search_record).
-ins(interindustry, 0xA4, select).
-ins(interindustry, X,    read_binary) :- X = 0xB0; X = 0xB1.
-ins(interindustry, X,    read_record) :- X = 0xB2; X = 0xB3.
-ins(interindustry, 0xC0, get_response).
-ins(interindustry, X,    envelope) :- X = 0xC2; X = 0xC3.
-ins(interindustry, X,    get_data) :- X = 0xCA; X = 0xCB.
-ins(interindustry, X,    write_binary) :- X = 0xD0; X = 0xD1.
-ins(interindustry, 0xD2, write_record).
-ins(interindustry, X,    update/binary) :- X = 0xD6; X = 0xD7.
-ins(interindustry, X,    put_data) :- X = 0xDA; X = 0xDB.
-ins(interindustry, X,    update_record) :- X = 0xDC; X = 0xDD.
-ins(interindustry, 0xE0, create_file).
-ins(interindustry, 0xE2, append_record).
-ins(interindustry, 0xE4, delete_file).
-ins(interindustry, 0xE6, terminate_df).
-ins(interindustry, 0xE8, terminate_ef).
-ins(interindustry, 0xFE, terminate_card_usage).
-%ins(interindustry, X,    invalid_command) :- X /\ 0x60 + X /\ 0x90 =\= 0.
-ins(proprietary(emv), 0xA8, get_processing_options).
+cm(Cla, Ins, P1, P2, Tc, Te, Command) :-
+    maplist(bits(8), [ClaBits,P1Bits,P2Bits], [Cla,P1,P2]),
+    cm_(ClaBits, Ins, P1Bits, P2Bits, Tc, Te, Command).
 
+%% cm(+ClaBits, +Ins, +P1Bits, +P2Bits, -Tc, -Te, -Command).
+%
+cm_(Cla, 0x70, [1,0,0,0,0,0,0,0], [0,0,0,0,0,0,0,0], absent, absent,     manage_channel(close(N))) :- cla_meaning_(Cla, _, [channel(N),_,_]).
+cm_(_,   0x70, [1,0,0,0,0,0,0,0], [0,0,0,0,0,0,A,B], absent, absent,     manage_channel(close(N))) :- N is A << 1 + B, N > 0.
+cm_(_,   0x70, [0,0,0,0,0,0,0,0], [0,0,0,0,0,0,0,0], absent, present(_), manage_channel(open)).
+cm_(_,   0x70, [0,0,0,0,0,0,0,0], [0,0,0,0,0,0,A,B], absent, absent,     manage_channel(open(N))) :- N is A << 1 + B, N > 0.
+cm_(_,   0xA4, P1Bits,            P2Bits,            Tc,     present(_), select(DataType,Occurrence,Return)) :-
+    select_p1(P1Bits, Tc, DataType),
+    select_p2(P2Bits, occurrence(Occurrence)),
+    select_p2(P2Bits, return(Return)).
+% EMV Book 3 table 17
+cm_([1,0,0,0,0,0,0,0], 0xA8, [0,0,0,0,0,0,0,0], [0,0,0,0,0,0,0,0], present(_), present(_), get_processing_options).
+cm_(_, Ins, P1Bits, [A,B,C,D,E|P2Rest], Tc, Te, Command) :-
+    maplist(bits, [8,5,8], [P1Bits,[A,B,C,D,E],InsBits], [P1,Eid,Ins]),
+    record(InsBits, P1, Eid, P2Rest, Tc, Te, Command).
+
+% B2; B3
+record([1,0,1,1,0,0,1,X], P1, Eid, [0|T],   Tc, present(_), read_record(Eid,record_identifier(O,P1))) :- occurrence(T, O), read_record_tc(X, Tc).
+record([1,0,1,1,0,0,1,X], P1, Eid, [1,0,0], Tc, present(_), read_record(Eid,record_number(exact,P1))) :- read_record_tc(X, Tc).
+record([1,0,1,1,0,0,1,X], P1, Eid, [1,0,1], Tc, present(_), read_record(Eid,record_number(starting_from,P1))) :- read_record_tc(X, Tc).
+record([1,0,1,1,0,0,1,X], P1, Eid, [1,1,0], Tc, present(_), read_record(Eid,record_number(from_last_up_to,P1))) :- read_record_tc(X, Tc).
+% D2
+record([1,1,0,1,0,0,0,0], P1, Eid, [0|T],   _, _, write_record(Eid,record_identifier(O,P1))) :- occurrence(T, O).
+record([1,1,0,1,0,0,0,0], P1, Eid, [1,0,0], _, _, write_record(Eid,record_number(exact,P1))).
+% DC; DD
+record([1,1,0,1,1,1,0,1], P1, Eid, [1,0,0], _, _, update_record(replace,Eid,record_number(exact,P1))).
+record([1,1,0,1,1,1,0,1], P1, Eid, [1,0,1], _, _, update_record(and,Eid,record_number(exact,P1))).
+record([1,1,0,1,1,1,0,1], P1, Eid, [1,1,0], _, _, update_record(or,Eid,record_number(exact,P1))).
+record([1,1,0,1,1,1,0,1], P1, Eid, [1,1,1], _, _, update_record(xor,Eid,record_number(exact,P1))).
+
+read_record_tc(0, absent).
+read_record_tc(1, present(_)).
+
+occurrence([0,0], first).
+occurrence([0,1], last).
+occurrence([1,0], next).
+occurrence([1,1], previous).
+
+binary_data_handling(Ins, P1, P2, Tc, Te, File, Offset) :-
+    bits(8, InsBits, Ins),
+    bdh_(InsBits, P1, P2, Tc, Te, File, Offset).
+
+bdh_([_,_,_,_,_,_,_,0], [1,_,_,A,B,C,D,E], P2Bits, absent, absent, eid(Eid), Offset) :-
+    bits(5,[A,B,C,D,E], Eid),
+    bits(8, P2Bits, Offset).
+bdh_([_,_,_,_,_,_,_,0], [0,A,B,C,D,E,F,G], P2Bits, absent, absent, current, Offset) :-
+    bits(15, [A,B,C,D,E,F,G|P2Bits], Offset).
+bdh_([_,_,_,_,_,_,_,1], _, _, _, _, _, _) :- throw(error(not_implemented(bdh_/7),_)).
 
 % table 39
-p1(select, [0,0,0,0,0,0,0,0], present(_), fid(_)). % file (MF, DF, EF) identifier
-p1(select, [0,0,0,0,0,0,0,0], absent,     absent).
-p1(select, [0,0,0,0,0,0,0,1], present(_), did(_)). % DF identifier
-p1(select, [0,0,0,0,0,0,1,0], present(_), eid(_)). % EF identifier
-p1(select, [0,0,0,0,0,0,1,1], absent,     absent).
-p1(select, [0,0,0,0,0,1,0,0], present(_), aid_prefix(_)).
-p1(select, [0,0,0,0,1,0,0,0], present(_), path(mf, _)). % Path without the MF identifier
-p1(select, [0,0,0,0,1,0,0,1], present(_), path(df, _)). % Path without the current DF identifier
+select_p1([0,0,0,0,0,0,0,0], present(_), fid). % file (MF, DF, EF) identifier
+select_p1([0,0,0,0,0,0,0,0], absent,     absent).
+select_p1([0,0,0,0,0,0,0,1], present(_), did). % DF identifier
+select_p1([0,0,0,0,0,0,1,0], present(_), eid). % EF identifier
+select_p1([0,0,0,0,0,0,1,1], absent,     absent).
+select_p1([0,0,0,0,0,1,0,0], present(_), aid_prefix).
+select_p1([0,0,0,0,1,0,0,0], present(_), path_mf). % Path without the MF identifier
+select_p1([0,0,0,0,1,0,0,1], present(_), path_df). % Path without the current DF identifier
 
 % table 40
-p2(select, [0,0,0,0,_,_,0,0], occurrence(first)).
-p2(select, [0,0,0,0,_,_,0,1], occurrence(last)).
-p2(select, [0,0,0,0,_,_,1,0], occurrence(next)).
-p2(select, [0,0,0,0,_,_,1,1], occurrence(previous)).
-p2(select, [0,0,0,0,0,0,_,_], _,          return(fci)). % Return FCI template
-p2(select, [0,0,0,0,0,1,_,_], present(_), return(fcp)).
-p2(select, [0,0,0,0,1,0,_,_], present(_), return(fmd)).
-p2(select, [0,0,0,0,1,1,_,_], absent,     return(absent)).
-p2(select, [0,0,0,0,1,1,_,_], present,    return(proprietary)).
+select_p2([0,0,0,0,_,_| P2], occurrence(O)) :- occurrence(P2, O).
+select_p2([0,0,0,0,0,0,_,_], return(fci)). % Return FCI template
+select_p2([0,0,0,0,0,1,_,_], return(fcp)).
+select_p2([0,0,0,0,1,0,_,_], return(fmd)).
+select_p2([0,0,0,0,1,1,_,_], return(absent)).
+select_p2([0,0,0,0,1,1,_,_], return(proprietary)).
 
-
-%% bits(Bits, Number, Exponent) is multi.
+%% bits(-Exponent, -Bits, +Number) is multi.
+%% bits(+Exponent, -Bits, +Number) is semidet.
+%% bits(+Exponent, +Bits, -Number) is semidet.
 %
-bits(RBits, N, Exp) :-
+bits(Exp, RBits, N) :-
     length(Bits, Exp),
     reverse(Bits, RBits),
-    foldl(bb(N), Bits, 0, Exp), 1 << Exp > N.
+    (ground(N) ->
+        foldl(bb(N), Bits, 0, Exp), 1 << Exp > N
+    ;   foldl(bv, Bits, 0:0, Expression:Check), N is Expression, Exp =:= Check).
 
 bb(Byte, Bit, Exp, NextExp) :- Bit is (Byte /\ 1 << Exp) >> Exp, NextExp is Exp + 1.
+bv(Bit, A:Exp, A + (Bit << Exp):(Exp + 1)).
