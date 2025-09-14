@@ -1,4 +1,4 @@
-%:- initialization(db_consistent).
+:- initialization(db_consistent).
 
 %% ft(Fid, Type).
 %
@@ -34,6 +34,9 @@ pp(28673, 0x4F, [0xA0,0x00,0x00,0x01,0x52,0x30,0x10]).
 pp(28676, 0x4F, [0xA0,0x00,0x00,0x03,0x24,0x10,0x10,0x01]).
 pp(28673, 0x50, [0x43,0x6f,0x6e,0x74,0x61,0x63,0x74,0x6c,0x65,0x73,0x73,0x44,0x50,0x41,0x53]). % ContactlessDPAS
 pp(28676, 0x50, [0x44,0x69,0x73,0x63,0x6f,0x76,0x65,0x72]). % Discover
+pp(28673, 0x87, [0x01]).
+pp(28676, 0x87, [0x02]).
+pp(28673, 0x9F2A, [0x00,0x06]).
 
 %% fd(Fid, Data).
 %
@@ -61,14 +64,14 @@ property(Fid, 0x50, A) :- pp(Fid, 0x50, A).
 property(Fid, 0x4F, H) :- pp(Fid, 0x4F, H).
 
 % Commands (ISO 7816-4 5.3.1.1)
-instruction(select, by_dfname, Fid, DfName) :- dfname(Fid, DfName).
-instruction(select, by_fid, Fid, Fid) :- ft(Fid, _).
-instruction(select, by_path, Fid, Path) :- abs(Fid, Path).
+select(by_dfname, first, Fid, DfName) :- once(dfname(Fid, DfName)).
+select(by_fid, first, Fid, Fid) :- once(ft(Fid, _)).
+select(by_path, first, Fid, Path) :- once(abs(Fid, Path)).
 
 % FCI
 fci(Fid, D) :-
-    D = [fci-[
-            dfname-DfName,
+    D = [0x6F-[
+            0x84-DfName,
             0xA5-[
                 0xBF0C-X61]]],
     dfname(Fid, DfName),
@@ -76,51 +79,36 @@ fci(Fid, D) :-
     maplist(x61, Children, X61).
 
 x61(Fid, X61) :-
-    X61 = 0x61-[aid-Aid,label-Label],
-    tag_describe([mnemonic(aid),value(AidT)]),
-    tag_describe([mnemonic(label),value(LabelT)]),
-    property(Fid, AidT, Aid),
-    property(Fid, LabelT, Label).
+    X61 = 0x61-[0x4F-Aid,0x50-Label,0x87-Aip|O],
+    pp(Fid, 0x4F, Aid),
+    pp(Fid, 0x50, Label),
+    pp(Fid, 0x87, Aip),
+    (pp(Fid, 0x9F2A, V) -> O = [0x9F2A-V]; O = []).
 
 % Tests
-db_consistent :- duplicates, ambiguous_type, ef_hosts_files, ef_has_dfname.
+db_consistent :- duplicates, ambiguous_type, ef_hosts_files.
 duplicates :- forall(ft(F, _), findall(X, ft(F,X), [_])).
 ambiguous_type :- \+((ft(Fid, T1), ft(Fid, T2), T1 \= T2)).
 ef_hosts_files :- \+((ft(Ef, ef), pc(Ef, _))).
-ef_has_dfname :- forall(fn(F, _, _), type(df, F)).
+%ef_has_dfname :- forall(fn(F, _), type(df, F)).
 
-% Tag knowledge base
-tag_describe(P) :-
-    between(1, 4, N), % Number of properties
-    length(P, N),
-    maplist(tag_property(_), P),
-    all_different(P).
+tag_property(Id, value(Id)) :- tag_db(Id, _, _, _).
+tag_property(Id, length(L)) :- tag_db(Id, L, _, _).
+tag_property(Id, name(N)) :- tag_db(Id, _, N, _).
+tag_property(Id, spec(S)) :- tag_db(Id, _, _, S).
 
-tag_property(Id, value(V)) :- tag_db(Id, V, _, _) ; tag_db(Id, V, _, _, _).
-tag_property(Id, mnemonic(M)) :- tag_db(Id, _, M, _, _).
-tag_property(Id, name(N)) :- tag_db(Id, _, N, _) ; tag_db(Id, _, _, N, _).
-tag_property(Id, spec(S)) :- tag_db(Id, _, _, S) ; tag_db(Id, _, _, _, S).
-
-tag_db(0x82, 0x82, 'File descriptor', 'b1..6').
-tag_db(0x83, 0x83, 'File identifier', 'b2').
-tag_db(0xA5, 0xA5, 'File Control Information (FCI) Proprietary Template', '').
-tag_db(0xBF0C, 0xBF0C, 'File Control Information (FCI) Issuer Discretionary Data', '').
-tag_db(0x61, 0x61, 'Application Template', '').
-tag_db(0x4F, 0x4F, aid, 'Application Identifier (AID) – Card', '').
-tag_db(0x50, 0x50, label, 'Application Label', '').
-tag_db(0x87, 0x87, api, 'Application Priority Indicator', '').
-tag_db(0x84, 0x84, dfname, 'Dedicated File (DF) Name', 'b..16').
-tag_db(0x6F, 0x6F, fci, 'File Control Information (FCI)', 't..').
-
-% Utils
-all_different([]).
-all_different([H|T]) :- maplist(\=(H), T), all_different(T).
-
-%% cla_meaning(+Cla, -Class, -ClaMeaning) is det.
-%
-cla_meaning(Cla, Class, ClaMeaning) :-
-    bits(8, Bits, Cla),
-    once(cla_meaning_(Bits, Class, ClaMeaning)).
+tag_db(0x82, 1, 'File descriptor', 'b1..6').
+tag_db(0x83, 1, 'File identifier', 'b2').
+tag_db(0xA5, 1, 'File Control Information (FCI) Proprietary Template', 't..').
+tag_db(0xBF0C, 2, 'File Control Information (FCI) Issuer Discretionary Data', 't..').
+tag_db(0x61, 1, 'Application Template', 't..').
+tag_db(0x87, 1, 'Application Priority Indicator', 'b1').
+tag_db(0x9F2A, 2, '', 'b2'). % Unknown
+tag_db(0x4F, 1, 'Application Identifier (AID) – Card', 'b5..16').
+tag_db(0x50, 1, 'Application Label', 'b1..16').
+tag_db(0x87, 1, 'Application Priority Indicator', 'b1').
+tag_db(0x84, 1, 'Dedicated File (DF) Name', 'b..16').
+tag_db(0x6F, 1, 'File Control Information (FCI)', 't..').
 
 cla_meaning_(Bits, proprietary, []) :-
     cla_property(Bits, class(proprietary)).

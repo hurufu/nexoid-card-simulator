@@ -25,15 +25,38 @@ put_bytes(Stream) --> [] | [-Byte], { put_byte(Stream, Byte) }, put_bytes(Stream
 get_bytes(Stream, B, A) :-
     get_byte(Stream, Byte), Byte >= 0, A = [+Byte|X], (X = B; get_bytes(Stream, B, X)).
 
-response_for(select(aid_prefix,Occurrence,fci), Data, Te, Le, Response, Sw1, Sw2) :-
-    open_list(Dt, L-R),
-    fn(Fid, L),
-    fci(Fid, FCI),
-    abstract_ber(FCI, Ber).
+response_for(select(aid_prefix,Occurrence,fci), Dt, present(_), Le, Rs, 0x90, 0x00) :-
+    open_list(Dt, L-_),
+    select(by_dfname, Occurrence, Fid, L),
+    fci(Fid, Fci),
+    phrase(ber(Fci,Length), Tmp),
+    maplist(is, Rs, Tmp),
+    (Le = 0, Length < 256; Le > 0, Length =:= Le).
 
 % Describes list difference an it's prefix (regular list)
 open_list([], X-X).
 open_list([H|D], [H|T]-X) :- open_list(D, T-X).
+
+output([]) --> [].
+output([H|T]), [-H] --> output(T).
+
+
+ber([], 0) --> [].
+ber([Tlv|Rest], L0+L1) --> tlv(Tlv, L0), ber(Rest, L1).
+tlv(T-V, L0+L1) --> tag(T, spec(S), L0), len(L1, VL), value(S, V, VL).
+tag(T, spec(S), 1) --> { tag_property(T, length(1)), tag_property(T, spec(S)) }, [T].
+tag(T, spec(S), 2) --> { tag_property(T, length(2)), tag_property(T, spec(S)), number_bytes(T,[B1,B2]) }, [B1,B2].
+len(VL+1, VL) --> [VL].
+value('t..', V, L) --> ber(V, L).
+value('b..16', V, N) --> V,  { once(length(V, N)), N >= 0, N =< 16 }.
+value('b5..16', V, N) --> V, { once(length(V, N)), N >= 5, N =< 16 }.
+value('b1..16', V, N) --> V, { once(length(V, N)), N >= 1, N =< 16 }.
+value('b1', [V], 1) --> [V].
+value('b2', [A,B], 2) --> [A,B].
+
+number_bytes(N, [A,B]) :-
+    bits(16, [A0,A1,A2,A3,A4,A5,A6,A7,B0,B1,B2,B3,B4,B5,B6,B7], N),
+    maplist(bits(8), [[A0,A1,A2,A3,A4,A5,A6,A7],[B0,B1,B2,B3,B4,B5,B6,B7]],[A,B]).
 
 %response_for(0x00, 0xA4, 0x04, 0x00, Dt, present(_), 0x00, Rs, 0x90, 0x00) :- Dt = [50,80,65,89,46,83,89,83,46,68,68,70,48,49], % 2PAY.SYS.DDF01
 %    Rs = [111,45,132,14,50,80,65,89,46,83,89,83,46,68,68,70,48,49,165,27,191,12,24,97,22,79,7,160,0,0,0,3,16,16,80,11,86,73,83,65,32,67,82,69,68,73,84].
