@@ -9,23 +9,26 @@ command_response_pair -->
 hdr(Cmd, Qc, Qe) --> [+Cla,+Ins,+P1,+P2], { cm(Cla, Ins, P1, P2, Qc, Qe, Cmd) }.
 
 lc(absent) --> [].
-lc(present(Tc,Nc)) --> [+L0], ({ L0 > 0 } -> { Tc = short, Nc = L0 }; [+L1,+L2], { Tc = extended, Nc is (L1 << 8) + L2, Nc > 0 }).
+lc(present(short,Nc)) --> singlet(1, Nc).
+lc(present(extended,Nc)) --> [+0], doublet(1, Nc).
 
 cmd(absent, []) --> [].
-cmd(present(_,Nc), Bytes) --> length_(L, Nc), { maplist(in_, L, Bytes) }.
-in_(+A, A).
+cmd(present(_,Nc), Bytes) --> nbytes(Bytes, Nc).
 
-le(_, absent, 0) --> [].
-le(present(short,_), present(short,Ne)) --> [+Le], { Ne is Le }.
-le(present(extended,_), present(extended,Ne)) --> [+L1,+L2], { Ne is (L1 << 8) + L2 }.
-le(absent, present(extended,Ne)) --> [+ 0,+L1,+L2], { Ne is (L1 << 8) + L2 }.
+le(_, absent) --> [].
+le(present(short,_), present(short,Ne)) --> singlet(0, Ne).
+le(present(extended,_), present(extended,Ne)) --> doublet(0, Ne).
+le(absent, present(extended,Ne)) --> [+0], doublet(0, Ne).
 
 response(Cmd, Dt, Qe) --> { response_for(Cmd, Dt, Qe, Response, Sw1, Sw2) }, output([Sw1,Sw2]), output(Response).
 
-length_(L, N) --> { ground(N), functor(_, t, N) } -> seqn_int(L, N); seqn_var(L, N).
-seqn_int(L, N) --> { N =:= 0 } -> { L = [] }, []; { L = [H|T], M is N - 1 }, [H], seqn_int(T, M).
+singlet(Lowest, A) --> [+A], { between(0, 255, A), A >= Lowest }.
+doublet(Lowest, N) --> [+A,+B], { maplist(between(0, 255), [A,B]), N is (A << 8) + B, N >= Lowest }.
+
+nbytes(L, N) --> { ground(N), functor(_, t, N) } -> seqn_int(L, N); seqn_var(L, N).
+seqn_int(L, N) --> { N =:= 0 } -> { L = [] }, []; { L = [H|T], M is N - 1 }, [+H], seqn_int(T, M).
 seqn_var([], 0) --> [].
-seqn_var([H|T], N) --> [H], seqn_var(T, M), { N is M + 1 }.
+seqn_var([H|T], N) --> [+H], seqn_var(T, M), { N is M + 1 }.
 
 put_bytes(Stream) --> [] | [-Byte], { put_byte(Stream, Byte) }, put_bytes(Stream).
 get_bytes(Stream, B, A) :-
