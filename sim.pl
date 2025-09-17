@@ -4,28 +4,34 @@ exchange --> get_bytes(rd), command_response_pair, put_bytes(wr).
 
 % section 5.1
 command_response_pair -->
-    hdr(Cmd, Tc, Te), lc(Tc, Nc), cmd(Tc, Nc, Dt), le(Tc, Te, Le), response(Cmd, Dt, Te, Le).
+    hdr(Cmd, Qc, Qe), lc(Qc), cmd(Qc, Dt), le(Qc, Qe), response(Cmd, Dt, Qe).
 
-hdr(Cmd, Tc, Te) --> [+Cla,+Ins,+P1,+P2], { cm(Cla, Ins, P1, P2, Tc, Te, Cmd) }.
-lc(absent, 0) --> [].
-lc(present(Tc), Nc) --> [+L0], ({ L0 > 0 } -> { Tc = short, Nc = L0 }; [+L1,+L2], { Tc = extended, Nc is (L1 << 8) + L2, Nc > 0 }).
-cmd(absent, 0, []) --> [].
-cmd(present(_), Nc, Bytes) --> length_(L, Nc), { maplist(in_, L, Bytes) }.
+hdr(Cmd, Qc, Qe) --> [+Cla,+Ins,+P1,+P2], { cm(Cla, Ins, P1, P2, Qc, Qe, Cmd) }.
+
+lc(absent) --> [].
+lc(present(Tc,Nc)) --> [+L0], ({ L0 > 0 } -> { Tc = short, Nc = L0 }; [+L1,+L2], { Tc = extended, Nc is (L1 << 8) + L2, Nc > 0 }).
+
+cmd(absent, []) --> [].
+cmd(present(_,Nc), Bytes) --> length_(L, Nc), { maplist(in_, L, Bytes) }.
 in_(+A, A).
+
 le(_, absent, 0) --> [].
-le(present(short), present(short), Ne) --> [+Le], { Ne is Le }.
-le(present(extended), present(extended), Ne) --> [+L1,+L2], { Ne is (L1 << 8) + L2 }.
-le(absent, present(extended), Ne) --> [+ 0,+L1,+L2], { Ne is (L1 << 8) + L2 }.
-response(Cmd, Dt, Te, Le) --> { response_for(Cmd, Dt, Te, Le, Response, Sw1, Sw2) }, output([Sw1,Sw2]), output(Response).
+le(present(short,_), present(short,Ne)) --> [+Le], { Ne is Le }.
+le(present(extended,_), present(extended,Ne)) --> [+L1,+L2], { Ne is (L1 << 8) + L2 }.
+le(absent, present(extended,Ne)) --> [+ 0,+L1,+L2], { Ne is (L1 << 8) + L2 }.
+
+response(Cmd, Dt, Qe) --> { response_for(Cmd, Dt, Qe, Response, Sw1, Sw2) }, output([Sw1,Sw2]), output(Response).
+
 length_(L, N) --> { ground(N), functor(_, t, N) } -> seqn_int(L, N); seqn_var(L, N).
 seqn_int(L, N) --> { N =:= 0 } -> { L = [] }, []; { L = [H|T], M is N - 1 }, [H], seqn_int(T, M).
 seqn_var([], 0) --> [].
 seqn_var([H|T], N) --> [H], seqn_var(T, M), { N is M + 1 }.
+
 put_bytes(Stream) --> [] | [-Byte], { put_byte(Stream, Byte) }, put_bytes(Stream).
 get_bytes(Stream, B, A) :-
     get_byte(Stream, Byte), Byte >= 0, A = [+Byte|X], (X = B; get_bytes(Stream, B, X)).
 
-response_for(select(aid_prefix,Occurrence,fci), Dt, present(_), Le, Rs, 0x90, 0x00) :-
+response_for(select(aid_prefix,Occurrence,fci), Dt, present(_,Le), Rs, 0x90, 0x00) :-
     open_list(Dt, L-_),
     select(by_dfname, Occurrence, Fid, L),
     fci(Fid, Fci),
@@ -159,33 +165,33 @@ cla_property([1,A,B,C,D,E,F,G], class(proprietary)) :-  member(0, [A,B,C,D,E,F,G
 
 :- dynamic(channel_supported/0).
 
-%% cm(+Cla, +Ins, +P1, +P2, -Tc, -Te, -Command).
+%% cm(+Cla, +Ins, +P1, +P2, -Qc, -Qe, -Command).
 %
-cm(Cla, Ins, P1, P2, Tc, Te, Command) :-
+cm(Cla, Ins, P1, P2, Qc, Qe, Command) :-
     maplist(bits(8), [ClaBits,P1Bits,P2Bits], [Cla,P1,P2]),
-    cm_(ClaBits, Ins, P1Bits, P2Bits, Tc, Te, Command).
+    cm_(ClaBits, Ins, P1Bits, P2Bits, Qc, Qe, Command).
 
-%% cm(+ClaBits, +Ins, +P1Bits, +P2Bits, -Tc, -Te, -Command).
+%% cm(+ClaBits, +Ins, +P1Bits, +P2Bits, -Qc, -Qe, -Command).
 %
 cm_(Cla, 0x70, [1,0,0,0,0,0,0,0], [0,0,0,0,0,0,0,0], absent, absent,     manage_channel(close(N))) :- cla_meaning_(Cla, _, [channel(N),_,_]).
 cm_(_,   0x70, [1,0,0,0,0,0,0,0], [0,0,0,0,0,0,A,B], absent, absent,     manage_channel(close(N))) :- N is A << 1 + B, N > 0.
-cm_(_,   0x70, [0,0,0,0,0,0,0,0], [0,0,0,0,0,0,0,0], absent, present(_), manage_channel(open)).
+cm_(_,   0x70, [0,0,0,0,0,0,0,0], [0,0,0,0,0,0,0,0], absent, present(_,_), manage_channel(open)).
 cm_(_,   0x70, [0,0,0,0,0,0,0,0], [0,0,0,0,0,0,A,B], absent, absent,     manage_channel(open(N))) :- N is A << 1 + B, N > 0.
-cm_(_,   0xA4, P1Bits,            P2Bits,            Tc,     present(_), select(DataType,Occurrence,Return)) :-
-    select_p1(P1Bits, Tc, DataType),
+cm_(_,   0xA4, P1Bits,            P2Bits,            Qc,     present(_,_), select(DataType,Occurrence,Return)) :-
+    select_p1(P1Bits, Qc, DataType),
     select_p2(P2Bits, occurrence(Occurrence)),
     select_p2(P2Bits, return(Return)).
 % EMV Book 3 table 17
-cm_([1,0,0,0,0,0,0,0], 0xA8, [0,0,0,0,0,0,0,0], [0,0,0,0,0,0,0,0], present(_), present(_), get_processing_options).
-cm_(_, Ins, P1Bits, [A,B,C,D,E|P2Rest], Tc, Te, Command) :-
+cm_([1,0,0,0,0,0,0,0], 0xA8, [0,0,0,0,0,0,0,0], [0,0,0,0,0,0,0,0], present(_,_), present(_,_), get_processing_options).
+cm_(_, Ins, P1Bits, [A,B,C,D,E|P2Rest], Qc, Qe, Command) :-
     maplist(bits, [8,5,8], [P1Bits,[A,B,C,D,E],InsBits], [P1,Eid,Ins]),
-    record(InsBits, P1, Eid, P2Rest, Tc, Te, Command).
+    record(InsBits, P1, Eid, P2Rest, Qc, Qe, Command).
 
 % B2; B3
-record([1,0,1,1,0,0,1,X], P1, Eid, [0|T],   Tc, present(_), read_record(Eid,record_identifier(O,P1))) :- occurrence(T, O), read_record_tc(X, Tc).
-record([1,0,1,1,0,0,1,X], P1, Eid, [1,0,0], Tc, present(_), read_record(Eid,record_number(exact,P1))) :- read_record_tc(X, Tc).
-record([1,0,1,1,0,0,1,X], P1, Eid, [1,0,1], Tc, present(_), read_record(Eid,record_number(starting_from,P1))) :- read_record_tc(X, Tc).
-record([1,0,1,1,0,0,1,X], P1, Eid, [1,1,0], Tc, present(_), read_record(Eid,record_number(from_last_up_to,P1))) :- read_record_tc(X, Tc).
+record([1,0,1,1,0,0,1,X], P1, Eid, [0|T],   Tc, present(_,_), read_record(Eid,record_identifier(O,P1))) :- occurrence(T, O), read_record_tc(X, Tc).
+record([1,0,1,1,0,0,1,X], P1, Eid, [1,0,0], Tc, present(_,_), read_record(Eid,record_number(exact,P1))) :- read_record_tc(X, Tc).
+record([1,0,1,1,0,0,1,X], P1, Eid, [1,0,1], Tc, present(_,_), read_record(Eid,record_number(starting_from,P1))) :- read_record_tc(X, Tc).
+record([1,0,1,1,0,0,1,X], P1, Eid, [1,1,0], Tc, present(_,_), read_record(Eid,record_number(from_last_up_to,P1))) :- read_record_tc(X, Tc).
 % D2
 record([1,1,0,1,0,0,0,0], P1, Eid, [0|T],   _, _, write_record(Eid,record_identifier(O,P1))) :- occurrence(T, O).
 record([1,1,0,1,0,0,0,0], P1, Eid, [1,0,0], _, _, write_record(Eid,record_number(exact,P1))).
@@ -196,7 +202,7 @@ record([1,1,0,1,1,1,0,1], P1, Eid, [1,1,0], _, _, update_record(or,Eid,record_nu
 record([1,1,0,1,1,1,0,1], P1, Eid, [1,1,1], _, _, update_record(xor,Eid,record_number(exact,P1))).
 
 read_record_tc(0, absent).
-read_record_tc(1, present(_)).
+read_record_tc(1, present(_,_)).
 
 occurrence([0,0], first).
 occurrence([0,1], last).
@@ -215,14 +221,14 @@ bdh_([_,_,_,_,_,_,_,0], [0,A,B,C,D,E,F,G], P2Bits, absent, absent, current, Offs
 bdh_([_,_,_,_,_,_,_,1], _, _, _, _, _, _) :- throw(error(not_implemented(bdh_/7),_)).
 
 % table 39
-select_p1([0,0,0,0,0,0,0,0], present(_), fid). % file (MF, DF, EF) identifier
+select_p1([0,0,0,0,0,0,0,0], present(_,_), fid). % file (MF, DF, EF) identifier
 select_p1([0,0,0,0,0,0,0,0], absent,     absent).
-select_p1([0,0,0,0,0,0,0,1], present(_), did). % DF identifier
-select_p1([0,0,0,0,0,0,1,0], present(_), eid). % EF identifier
+select_p1([0,0,0,0,0,0,0,1], present(_,_), did). % DF identifier
+select_p1([0,0,0,0,0,0,1,0], present(_,_), eid). % EF identifier
 select_p1([0,0,0,0,0,0,1,1], absent,     absent).
-select_p1([0,0,0,0,0,1,0,0], present(_), aid_prefix).
-select_p1([0,0,0,0,1,0,0,0], present(_), path_mf). % Path without the MF identifier
-select_p1([0,0,0,0,1,0,0,1], present(_), path_df). % Path without the current DF identifier
+select_p1([0,0,0,0,0,1,0,0], present(_,_), aid_prefix).
+select_p1([0,0,0,0,1,0,0,0], present(_,_), path_mf). % Path without the MF identifier
+select_p1([0,0,0,0,1,0,0,1], present(_,_), path_df). % Path without the current DF identifier
 
 % table 40
 select_p2([0,0,0,0,_,_| P2], occurrence(O)) :- occurrence(P2, O).
