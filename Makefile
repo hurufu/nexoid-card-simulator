@@ -20,8 +20,8 @@ start-hce: hce | in.fifo out.fifo
 	exec ./$< >in.fifo <out.fifo
 start-sim: sim | in.fifo out.fifo
 	exec ./$<
-start-int: sim.pl card.pl sim-init.pl $(INIT_$(PROLOG)) | in.fifo out.fifo
-	exec $(PROLOG) $<
+start-int: sim.pl card.pl sim-init-$(INIT_$(PROLOG)).pl sim-init.pl | in.fifo out.fifo
+	exec $(PROLOG) $^
 check: sim.pl card.pl sim-ut.pl
 	exec $(PROLOG) -g 'halt' $^
 clean: F := $(wildcard hce sim *.s *.o *.fifo *.wam *.ma)
