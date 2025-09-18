@@ -8,6 +8,12 @@ test(lc(2)) :- phrase(lc(Qc), [+0], B) -> Qc == absent, B == [+0].
 test(lc(3)) :- phrase(lc(Qc), [+5]) -> Qc == present(short,5).
 test(lc(4)) :- phrase(lc(Qc), [+0,+1,+0]) -> Qc == present(extended,256).
 test(lc(5)) :- \+ phrase(lc(_), [+0,+0,+0]).
+test(lc(6)) :- findall(t, phrase(lc(absent), _), L), length(L, 1).
+test(lc(7)) :- findall(t, phrase(lc(present(short,_)), _), L), length(L, 255).
+test(lc(8)) :- findall(t, phrase(lc(present(extended,_)), _), L), length(L, 65535).
+test(nbytes(1)) :- T = [1|T], \+ phrase(nbytes(T, _), _).
+test(nbytes(2)) :- phrase(nbytes(X,5), Y) -> X = [A,B,C,D,E], Y = [+A,+B,+C,+D,+E].
+test(nbytes(3)) :- phrase(nbytes(X,N), [+1,+2,+3]) -> N == 3, X == [1,2,3].
 test(cm(1)) :- cm(0x00, 0xA4, 0x04, 0x00, Qc, Qe, C) -> Qc = present(_,_), Qe = present(_,_), C == select(aid_prefix,first,fci).
 test(cm(2)) :- cm(0x80, 0xA8, 0x00, 0x00, Qc, Qe, C) -> Qc = present(_,_), Qe = present(_,_), C == get_processing_options.
 test(cm(3)) :- cm(0x00, 0xB2, 0x01, 0x14, Qc, Qe, C) -> Qc == absent, Qe = present(_,_), C == read_record(2,record_number(exact,1)).

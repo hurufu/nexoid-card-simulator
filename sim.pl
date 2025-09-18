@@ -25,7 +25,7 @@ response(Cmd, Dt, Qe) --> { response_for(Cmd, Dt, Qe, Response, Sw1, Sw2) }, out
 singlet(Lowest, A) --> [+A], { between(0, 255, A), A >= Lowest }.
 doublet(Lowest, N) --> [+A,+B], { maplist(between(0, 255), [A,B]), N is (A << 8) + B, N >= Lowest }.
 
-nbytes(L, N) --> { ground(N), functor(_, t, N) } -> seqn_int(L, N); seqn_var(L, N).
+nbytes(L, N) --> { ground(N), functor(_, t, N) } -> seqn_int(L, N); { acyclic_term(L) }, seqn_var(L, N).
 seqn_int(L, N) --> { N =:= 0 } -> { L = [] }, []; { L = [H|T], M is N - 1 }, [+H], seqn_int(T, M).
 seqn_var([], 0) --> [].
 seqn_var([H|T], N) --> [+H], seqn_var(T, M), { N is M + 1 }.
