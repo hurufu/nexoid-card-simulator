@@ -6,12 +6,15 @@ TARGET_MACH    := --64
 LDFLAGS        := -fhardened -Whardened
 PROLOG         := scryer-prolog
 GPROLOG_LIBDIR := /usr/share/gprolog/lib
+CARD           := visa
 
 INIT_scryer-prolog := scryer
 INIT_swipl         := swi
 INIT_gprolog       := gpl
 
 .PHONY: start clean build start-hce start-int inter check
+
+vpath %.pl cards
 
 build: hce sim
 start: start-hce start-sim
@@ -20,9 +23,9 @@ start-hce: hce | in.fifo out.fifo
 	exec ./$< >in.fifo <out.fifo
 start-sim: sim | in.fifo out.fifo
 	exec ./$<
-start-int: sim.pl card.pl sim-init-$(INIT_$(PROLOG)).pl sim-init.pl | in.fifo out.fifo
+start-int: sim.pl $(CARD).pl sim-init-$(INIT_$(PROLOG)).pl sim-init.pl | in.fifo out.fifo
 	exec $(PROLOG) $^
-check: sim.pl card.pl sim-ut.pl
+check: sim.pl $(CARD).pl sim-ut.pl
 	exec $(PROLOG) -g 'halt' $^
 clean: F := $(wildcard hce sim *.s *.o *.fifo *.wam *.ma)
 clean:
@@ -33,7 +36,7 @@ hce: hce.c
 	$(LINK.c) -o $@ $< $(LDLIBS)
 sim: LDLIBS  := $(GPROLOG_LIBDIR)/all_pl_bips.o -lbips_pl -lengine_pl -llinedit -lm
 sim: LDFLAGS += -L$(GPROLOG_LIBDIR)
-sim: sim.o card.o sim-init.o sim-init-gpl.o
+sim: sim.o $(CARD).o sim-init.o sim-init-gpl.o
 	$(LINK.o) -o $@ $^ $(LDLIBS)
 
 %.wam: %.pl
