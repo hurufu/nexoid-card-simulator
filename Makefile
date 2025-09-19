@@ -8,13 +8,14 @@ PROLOG         := scryer-prolog
 GPROLOG_LIBDIR := /usr/share/gprolog/lib
 CARD           := visa
 
-INIT_scryer-prolog := scryer
-INIT_swipl         := swi
-INIT_gprolog       := gpl
+COMPAT_scryer-prolog := scryer
+COMPAT_swipl         := swi
+COMPAT_gprolog       := gpl
+COMPAT               := $(COMPAT_$(PROLOG)).pl
 
 .PHONY: start clean build start-hce start-int inter check
 
-vpath %.pl cards
+vpath %.pl cards compat
 
 build: hce sim
 start: start-hce start-sim
@@ -23,9 +24,9 @@ start-hce: hce | in.fifo out.fifo
 	exec ./$< >in.fifo <out.fifo
 start-sim: sim | in.fifo out.fifo
 	exec ./$<
-start-int: sim.pl $(CARD).pl sim-init-$(INIT_$(PROLOG)).pl sim-init.pl | in.fifo out.fifo
+start-int: sim.pl $(CARD).pl $(COMPAT) init.pl | in.fifo out.fifo
 	exec $(PROLOG) $^
-check: sim.pl $(CARD).pl sim-ut.pl
+check: sim.pl $(CARD).pl $(COMPAT) ut.pl
 	exec $(PROLOG) -g 'halt' $^
 clean: F := $(wildcard hce sim *.s *.o *.fifo *.wam *.ma)
 clean:
