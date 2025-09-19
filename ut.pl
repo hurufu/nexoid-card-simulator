@@ -1,5 +1,3 @@
-:- initialization(test).
-
 test :- findall(N, clause(test(N),_), Ns), maplist(test, Ns).
 
 :- dynamic(test/1).

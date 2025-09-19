@@ -34,13 +34,22 @@ put_bytes(Stream) --> [] | [-Byte], { put_byte(Stream, Byte) }, put_bytes(Stream
 get_bytes(Stream, B, A) :-
     get_byte(Stream, Byte), Byte >= 0, A = [+Byte|X], (X = B; get_bytes(Stream, B, X)).
 
-response_for(select(aid_prefix,Occurrence,fci), Dt, present(_,Le), Rs, 0x90, 0x00) :-
+response_for(select(aid_prefix,Occurrence,fci), Dt, Qe, Rs, 0x90, 0x00) :-
     open_list(Dt, L-_),
     select(by_dfname, Occurrence, Fid, L),
     fci(Fid, Fci),
     phrase(ber(Fci,Length), Tmp),
     maplist(is, Rs, Tmp),
-    (Le = 0, Length < 256; Le > 0, Length =:= Le).
+    le_ok(Qe, Length).
+response_for(get_processing_options, _, Qe, Rs, 0x90, 0x00) :-
+    phrase(gpo_(22090), GPO),
+    phrase(ber([0x77-GPO], Length), Tmp),
+    maplist(is, Rs, Tmp),
+    le_ok(Qe, Length).
+
+le_ok(Qe, Length) :- le_max(Qe, Max), Length =< Max.
+le_max(present(short,Ne), Max) :- Ne =:= 0 -> Max = 256; Max = Ne.
+le_max(present(extended,Ne), Max) :- Ne =:= 0 -> Max = 65535; Max = Ne.
 
 % Describes list difference an it's prefix (regular list)
 open_list([], X-X).
@@ -58,10 +67,17 @@ tag(T, spec(S), 2) --> { tag_property(T, length(2)), tag_property(T, spec(S)), n
 len(VL+1, VL) --> [VL].
 value('t..', V, L) --> ber(V, L).
 value('b..16', V, N) --> V,  { once(length(V, N)), N >= 0, N =< 16 }.
+value('b..19', V, N) --> V,  { once(length(V, N)), N >= 0, N =< 19 }.
+value('b..32', V, N) --> V,  { once(length(V, N)), N >= 0, N =< 32 }.
+value('b..64', V, N) --> V,  { once(length(V, N)), N >= 0, N =< 64 }.
 value('b5..16', V, N) --> V, { once(length(V, N)), N >= 5, N =< 16 }.
 value('b1..16', V, N) --> V, { once(length(V, N)), N >= 1, N =< 16 }.
+value('b1..6', V, N) --> V, { once(length(V, N)), N >= 1, N =< 6 }.
 value('b1', [V], 1) --> [V].
 value('b2', [A,B], 2) --> [A,B].
+value('b5', [A,B,C,D,E], 5) --> [A,B,C,D,E].
+value('b8', [A,B,C,D,E,F,G,H], 8) --> [A,B,C,D,E,F,G,H].
+value('n2', [A], 1) --> [A].
 
 number_bytes(N, [A,B]) :-
     bits(16, [A0,A1,A2,A3,A4,A5,A6,A7,B0,B1,B2,B3,B4,B5,B6,B7], N),
@@ -89,17 +105,26 @@ fci(Fid, D) :-
     D = [0x6F-[
             0x84-DfName,
             0xA5-[
-                0xBF0C-X61]]],
+                0xBF0C-X61|A5_Options]]],
     dfname(Fid, DfName),
+    phrase(xA5_(Fid), A5_Options),
     findall(C, nesting(Fid,C), Children),
-    maplist(x61, Children, X61).
+    maplist(x61, [Fid|Children], X61).
 
-x61(Fid, X61) :-
-    X61 = 0x61-[0x4F-Aid,0x50-Label,0x87-Aip|O],
-    pp(Fid, 0x4F, Aid),
-    pp(Fid, 0x50, Label),
-    pp(Fid, 0x87, Aip),
-    (pp(Fid, 0x9F2A, V) -> O = [0x9F2A-V]; O = []).
+x61(Fid, 0x61-V) :- phrase(x61_(Fid), V).
+
+x61_(Fid) -->
+    optional_pp(Fid, 0x4F), optional_pp(Fid, 0x50), optional_pp(Fid, 0x87),
+    optional_pp(Fid, 0x9F2A), optional_pp(Fid, 0x9F5A).
+xA5_(Fid) --> optional_pp(Fid, 0x50), optional_pp(Fid, 0x9F38).
+
+gpo_(Fid) -->
+    optional_pp(Fid, 0x57), optional_pp(Fid, 0x82), optional_pp(Fid, 0x5F34),
+    optional_pp(Fid, 0x9F10), optional_pp(Fid, 0x9F26), optional_pp(Fid, 0x9F27),
+    optional_pp(Fid, 0x9F36), optional_pp(Fid, 0x9F6C).
+
+optional_pp(Fid, Tag) --> { pp(Fid, Tag, Value) } -> [Tag-Value]; [].
+
 
 % Tests
 db_consistent :- duplicates, ambiguous_type, ef_hosts_files.
@@ -115,16 +140,26 @@ tag_property(Id, spec(S)) :- tag_db(Id, _, _, S).
 
 tag_db(0x82, 1, 'File descriptor', 'b1..6').
 tag_db(0x83, 1, 'File identifier', 'b2').
-tag_db(0xA5, 1, 'File Control Information (FCI) Proprietary Template', 't..').
+tag_db(0xA5, 1, 'FCI Proprietary Template', 't..').
+tag_db(0x77, 1, 'Response Message Template Format 2', 't..').
 tag_db(0xBF0C, 2, 'File Control Information (FCI) Issuer Discretionary Data', 't..').
 tag_db(0x61, 1, 'Application Template', 't..').
 tag_db(0x87, 1, 'Application Priority Indicator', 'b1').
-tag_db(0x9F2A, 2, '', 'b2'). % Unknown
+tag_db(0x9F2A, 2, 'Unknown', 'b2').
 tag_db(0x4F, 1, 'Application Identifier (AID) – Card', 'b5..16').
 tag_db(0x50, 1, 'Application Label', 'b1..16').
 tag_db(0x87, 1, 'Application Priority Indicator', 'b1').
 tag_db(0x84, 1, 'Dedicated File (DF) Name', 'b..16').
 tag_db(0x6F, 1, 'File Control Information (FCI)', 't..').
+tag_db(0x9F38, 2, 'PDOL', 'b..64').
+tag_db(0x9F5A, 2, 'Unknown', 'b5').
+tag_db(0x57, 1, 'Track 2 Equivalent Data', 'b..19').
+tag_db(0x5F34, 2, 'Application PAN Sequence Number', 'n2').
+tag_db(0x9F10, 2, 'Issuer Application Data', 'b..32').
+tag_db(0x9F26, 2, 'Application Cryptogram', 'b8').
+tag_db(0x9F27, 2, 'Cryptogram Information Data', 'b1').
+tag_db(0x9F36, 2, 'ATC', 'b2').
+tag_db(0x9F6C, 2, 'Unknown', 'b2').
 
 cla_meaning_(Bits, proprietary, []) :-
     cla_property(Bits, class(proprietary)).
