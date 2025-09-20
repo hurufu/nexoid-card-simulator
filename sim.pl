@@ -25,12 +25,8 @@ response(Cmd, Dt, Qe) --> { response_for(Cmd, Dt, Qe, Response, Sw1, Sw2) }, out
 singlet(Lowest, A) --> [+A], { between(0, 255, A), A >= Lowest }.
 doublet(Lowest, N) --> [+A,+B], { maplist(between(0, 255), [A,B]), N is (A << 8) + B, N >= Lowest }.
 
-nbytes(L, N) --> { acyclic_term(L) }, length_(I, N), { maplist(in_, I, L) }.
-in_(+A, A).
-length_(L, N) --> { ground(N), functor(_, t, N) } -> seqn_int(L, N); { acyclic_term(L) }, seqn_var(L, N).
-seqn_int(L, N) --> { N =:= 0 } -> { L = [] }, []; { L = [H|T], M is N - 1 }, [H], seqn_int(T, M).
-seqn_var([], 0) --> [].
-seqn_var([H|T], N) --> [H], seqn_var(T, M), { N is M + 1 }.
+nbytes(Bytes, N) --> { acyclic_term(Bytes) }, foldd(count_input(N), Bytes, 0, N).
+count_input(N, E, V0, Vn) --> { \+var(N), V0 =:= N -> false; Vn is V0 + 1 }, [+E].
 
 put_bytes(Stream) --> [] | [-Byte], { put_byte(Stream, Byte) }, put_bytes(Stream).
 get_bytes(Stream, B, A) :-
@@ -74,6 +70,9 @@ value(n(I), V, N) --> { N is ceiling(I / 2) }, length_(V, N).
 number_bytes(N, [A,B]) :-
     bits(16, [A0,A1,A2,A3,A4,A5,A6,A7,B0,B1,B2,B3,B4,B5,B6,B7], N),
     maplist(bits(8), [[A0,A1,A2,A3,A4,A5,A6,A7],[B0,B1,B2,B3,B4,B5,B6,B7]],[A,B]).
+
+foldd(_, [], V, V) --> [].
+foldd(G__3, [H|T], V0, Vlast) --> call(G__3, H, V0, Vnext), foldd(G__3, T, Vnext, Vlast).
 
 % Interface
 nesting(Df, Fid) :- pc(Df, Fid), type(df, Df).

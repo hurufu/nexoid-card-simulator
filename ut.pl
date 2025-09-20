@@ -12,6 +12,7 @@ test(lc(8)) :- findall(t, phrase(lc(present(extended,_)), _), L), length(L, 6553
 test(nbytes(1)) :- T = [1|T], \+ phrase(nbytes(T, _), _).
 test(nbytes(2)) :- phrase(nbytes(X,5), Y) -> X = [A,B,C,D,E], Y = [+A,+B,+C,+D,+E].
 test(nbytes(3)) :- phrase(nbytes(X,N), [+1,+2,+3]) -> N == 3, X == [1,2,3].
+test(nbytes(4)) :- W=[_|W], \+ phrase(nbytes(W,_), W).
 test(cm(1)) :- cm(0x00, 0xA4, 0x04, 0x00, Qc, Qe, C) -> Qc = present(_,_), Qe = present(_,_), C == select(aid_prefix,first,fci).
 test(cm(2)) :- cm(0x80, 0xA8, 0x00, 0x00, Qc, Qe, C) -> Qc = present(_,_), Qe = present(_,_), C == get_processing_options.
 test(cm(3)) :- cm(0x00, 0xB2, 0x01, 0x14, Qc, Qe, C) -> Qc == absent, Qe = present(_,_), C == read_record(2,record_number(exact,1)).
