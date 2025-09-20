@@ -75,9 +75,12 @@ value('b1..16', V, N) --> V, { once(length(V, N)), N >= 1, N =< 16 }.
 value('b1..6', V, N) --> V, { once(length(V, N)), N >= 1, N =< 6 }.
 value('b1', [V], 1) --> [V].
 value('b2', [A,B], 2) --> [A,B].
+value('b4', [A,B,C,D], 4) --> [A,B,C,D].
 value('b5', [A,B,C,D,E], 5) --> [A,B,C,D,E].
 value('b8', [A,B,C,D,E,F,G,H], 8) --> [A,B,C,D,E,F,G,H].
 value('n2', [A], 1) --> [A].
+value('n3', [A,B], 2) --> [A,B].
+value('n12', [A,B,C,D,E,F], 6) --> [A,B,C,D,E,F].
 
 number_bytes(N, [A,B]) :-
     bits(16, [A0,A1,A2,A3,A4,A5,A6,A7,B0,B1,B2,B3,B4,B5,B6,B7], N),
@@ -142,24 +145,42 @@ tag_db(0x82, 1, 'File descriptor', 'b1..6').
 tag_db(0x83, 1, 'File identifier', 'b2').
 tag_db(0xA5, 1, 'FCI Proprietary Template', 't..').
 tag_db(0x77, 1, 'Response Message Template Format 2', 't..').
-tag_db(0xBF0C, 2, 'File Control Information (FCI) Issuer Discretionary Data', 't..').
+tag_db(0xBF0C, 2, 'FCI Issuer Discretionary Data', 't..').
 tag_db(0x61, 1, 'Application Template', 't..').
 tag_db(0x87, 1, 'Application Priority Indicator', 'b1').
-tag_db(0x9F2A, 2, 'Unknown', 'b2').
+tag_db(0x9F2A, 2, 'Kernel Identifier', 'b2').
 tag_db(0x4F, 1, 'Application Identifier (AID) – Card', 'b5..16').
 tag_db(0x50, 1, 'Application Label', 'b1..16').
 tag_db(0x87, 1, 'Application Priority Indicator', 'b1').
 tag_db(0x84, 1, 'Dedicated File (DF) Name', 'b..16').
 tag_db(0x6F, 1, 'File Control Information (FCI)', 't..').
 tag_db(0x9F38, 2, 'PDOL', 'b..64').
-tag_db(0x9F5A, 2, 'Unknown', 'b5').
+tag_db(0x9F5A, 2, 'Application Program Identifier (Kernel 3)', 'b1..16').
+tag_db(0x9F5A, 2, 'Membership Product Identifier (Kernel 4)', 'b1').
 tag_db(0x57, 1, 'Track 2 Equivalent Data', 'b..19').
 tag_db(0x5F34, 2, 'Application PAN Sequence Number', 'n2').
 tag_db(0x9F10, 2, 'Issuer Application Data', 'b..32').
 tag_db(0x9F26, 2, 'Application Cryptogram', 'b8').
 tag_db(0x9F27, 2, 'Cryptogram Information Data', 'b1').
 tag_db(0x9F36, 2, 'ATC', 'b2').
-tag_db(0x9F6C, 2, 'Unknown', 'b2').
+tag_db(0x9F6C, 2, 'CTQ', 'b2').
+tag_db(0x9F66, 2, 'TTQ (Kernel 3)', 'b4').
+tag_db(0x9F66, 2, 'PUNATC (Kernel 2)', false).
+tag_db(0x9F02, 2, 'Amount Authorised (numeric)', 'n12').
+tag_db(0x5F2A, 2, 'Transaction Currency Code', 'n3').
+tag_db(0x9F37, 2, 'Unpredictable Number', 'b4').
+tag_db(0x9F5B, 2, 'Issuer Script Results (Kernel 3)', false).
+tag_db(0x9F5B, 2, 'DSDOL (Kernel 2)', false).
+tag_db(0x9F5B, 2, 'Product Membership Number (Kernel 4)', false).
+
+dol([]) --> [].
+dol([H|T]) -->
+    {   tag_db(H, 1, _, Type),
+        phrase(value(Type, _, N), _) }, [H,N], dol(T).
+dol([H|T]) -->
+    {   tag_db(H, 2, _, Type),
+        number_bytes(H, [A,B]),
+        phrase(value(Type, _, N), _) }, [A,B,N], dol(T).
 
 cla_meaning_(Bits, proprietary, []) :-
     cla_property(Bits, class(proprietary)).
@@ -278,3 +299,58 @@ bits(Exp, RBits, N) :-
 
 bb(Byte, Bit, Exp, NextExp) :- Bit is (Byte /\ 1 << Exp) >> Exp, NextExp is Exp + 1.
 bv(Bit, A:Exp, A + (Bit << Exp):(Exp + 1)).
+
+% EMV Book 3 table CCD 3
+cryptogram_information_data([0,0,0,0,0,0,0,0], aac).
+cryptogram_information_data([0,1,0,0,0,0,0,0], tc).
+cryptogram_information_data([1,0,0,0,0,0,0,0], arqc).
+
+% EMV Book C-3 pp 91-92
+ctq(Qualifiers, Bytes) :-
+    Q1 = [online_pin_required,signature_required,go_online_if_oda_fails_and_reader_is_online_capable,
+          switch_interface_if_oda_fails,go_online_if_application_expired,
+          switch_interface_for_cash,switch_interface_for_cashback,false],
+    Q2 = [cdcvm_performed,card_supports_issuer_update_processing_at_the_pos,
+          false, false,false,false,false,false],
+    maplist(qual(Qualifiers), Q1, B1),
+    maplist(qual(Qualifiers), Q2, B2),
+    maplist(bits(8), [B1,B2], Bytes).
+
+qual(Qualifiers, Name, Bit) :- Name \= false, member(Name, Qualifiers) -> Bit = 1; Bit = 0.
+
+% https://sdk.supply/comparison-of-emv-compatible-applications
+% 9F10
+visa_discretionary_data([B1,B2,0x11,0x03,B5,0x00,0x00]) :-
+    cryptogram_version_number(B1),
+    derivation_key_indicator(B2),
+    cvr(A, B, C, D, E, F),
+    phrase(cvr_1(A, B, C, D, E, F), Bits),
+    bits(8, Bits, B5).
+
+%% cvr_1(A, B, C, D, E, F).
+%
+% @source https://paymentcardtools.com/emv-tag-decoders/iad
+% C = 1 when Issuer Authentication performed and failed
+% D = 1 when Offline PIN verification performed
+% E = 1 when Offline PIN verification failed
+% F = 1 when Unable to go online
+%
+% All of them must be 0 otherwise
+%
+% @source EMB Book 3 section C7.3
+%
+cvr_1(A,B,C,D,E,F) --> cvr_second_generate_ac(A), cvr_first_generate_ac(B), bit(C), bit(D), { D = 0 -> E = 0; D = 1 }, bit(E), bit(F).
+
+% Application Cryptogram Type Returned in 2nd GENERATE AC
+cvr_second_generate_ac(aac) --> [0,0].
+cvr_second_generate_ac(tc) --> [0,1].
+% 2nd GENERATE AC not requested
+cvr_second_generate_ac(not_requested) --> [1,0].
+
+% Application Cryptogram Type returned in 1st GENERATE AC
+cvr_first_generate_ac(aac) --> [0,0].
+cvr_first_generate_ac(tc) --> [0,1].
+cvr_first_generate_ac(arqc) --> [1,0].
+
+bit(1) --> [1].
+bit(0) --> [0].
