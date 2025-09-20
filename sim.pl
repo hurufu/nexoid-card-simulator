@@ -25,10 +25,12 @@ response(Cmd, Dt, Qe) --> { response_for(Cmd, Dt, Qe, Response, Sw1, Sw2) }, out
 singlet(Lowest, A) --> [+A], { between(0, 255, A), A >= Lowest }.
 doublet(Lowest, N) --> [+A,+B], { maplist(between(0, 255), [A,B]), N is (A << 8) + B, N >= Lowest }.
 
-nbytes(L, N) --> { ground(N), functor(_, t, N) } -> seqn_int(L, N); { acyclic_term(L) }, seqn_var(L, N).
-seqn_int(L, N) --> { N =:= 0 } -> { L = [] }, []; { L = [H|T], M is N - 1 }, [+H], seqn_int(T, M).
+nbytes(L, N) --> { acyclic_term(L) }, length_(I, N), { maplist(in_, I, L) }.
+in_(+A, A).
+length_(L, N) --> { ground(N), functor(_, t, N) } -> seqn_int(L, N); { acyclic_term(L) }, seqn_var(L, N).
+seqn_int(L, N) --> { N =:= 0 } -> { L = [] }, []; { L = [H|T], M is N - 1 }, [H], seqn_int(T, M).
 seqn_var([], 0) --> [].
-seqn_var([H|T], N) --> [+H], seqn_var(T, M), { N is M + 1 }.
+seqn_var([H|T], N) --> [H], seqn_var(T, M), { N is M + 1 }.
 
 put_bytes(Stream) --> [] | [-Byte], { put_byte(Stream, Byte) }, put_bytes(Stream).
 get_bytes(Stream, B, A) :-
@@ -65,22 +67,9 @@ tlv(T-V, L0+L1) --> tag(T, spec(S), L0), len(L1, VL), value(S, V, VL).
 tag(T, spec(S), 1) --> { tag_property(T, length(1)), tag_property(T, spec(S)) }, [T].
 tag(T, spec(S), 2) --> { tag_property(T, length(2)), tag_property(T, spec(S)), number_bytes(T,[B1,B2]) }, [B1,B2].
 len(VL+1, VL) --> [VL].
-value('t..', V, L) --> ber(V, L).
-value('b..16', V, N) --> V,  { once(length(V, N)), N >= 0, N =< 16 }.
-value('b..19', V, N) --> V,  { once(length(V, N)), N >= 0, N =< 19 }.
-value('b..32', V, N) --> V,  { once(length(V, N)), N >= 0, N =< 32 }.
-value('b..64', V, N) --> V,  { once(length(V, N)), N >= 0, N =< 64 }.
-value('b5..16', V, N) --> V, { once(length(V, N)), N >= 5, N =< 16 }.
-value('b1..16', V, N) --> V, { once(length(V, N)), N >= 1, N =< 16 }.
-value('b1..6', V, N) --> V, { once(length(V, N)), N >= 1, N =< 6 }.
-value('b1', [V], 1) --> [V].
-value('b2', [A,B], 2) --> [A,B].
-value('b4', [A,B,C,D], 4) --> [A,B,C,D].
-value('b5', [A,B,C,D,E], 5) --> [A,B,C,D,E].
-value('b8', [A,B,C,D,E,F,G,H], 8) --> [A,B,C,D,E,F,G,H].
-value('n2', [A], 1) --> [A].
-value('n3', [A,B], 2) --> [A,B].
-value('n12', [A,B,C,D,E,F], 6) --> [A,B,C,D,E,F].
+value(t, V, L) --> ber(V, L).
+value(b(L,U), V, N) --> { between(L, U, N) }, length_(V, N).
+value(n(I), V, N) --> { N is ceiling(I / 2) }, length_(V, N).
 
 number_bytes(N, [A,B]) :-
     bits(16, [A0,A1,A2,A3,A4,A5,A6,A7,B0,B1,B2,B3,B4,B5,B6,B7], N),
@@ -136,49 +125,51 @@ ambiguous_type :- \+((ft(Fid, T1), ft(Fid, T2), T1 \= T2)).
 ef_hosts_files :- \+((ft(Ef, ef), pc(Ef, _))).
 %ef_has_dfname :- forall(fn(F, _), type(df, F)).
 
-tag_property(Id, value(Id)) :- tag_db(Id, _, _, _).
-tag_property(Id, length(L)) :- tag_db(Id, L, _, _).
-tag_property(Id, name(N)) :- tag_db(Id, _, N, _).
-tag_property(Id, spec(S)) :- tag_db(Id, _, _, S).
+tag_property(Id, value(Id)) :- tag_db(Id, _, _).
+tag_property(Id, length(L)) :- tag_db(Id, _, _), L is ceiling(log(Id + 1) / log(2) / 8).
+tag_property(Id, name(N)) :- tag_db(Id, _, N).
+tag_property(Id, spec(S)) :- tag_db(Id, S, _).
 
-tag_db(0x82, 1, 'File descriptor', 'b1..6').
-tag_db(0x83, 1, 'File identifier', 'b2').
-tag_db(0xA5, 1, 'FCI Proprietary Template', 't..').
-tag_db(0x77, 1, 'Response Message Template Format 2', 't..').
-tag_db(0xBF0C, 2, 'FCI Issuer Discretionary Data', 't..').
-tag_db(0x61, 1, 'Application Template', 't..').
-tag_db(0x87, 1, 'Application Priority Indicator', 'b1').
-tag_db(0x9F2A, 2, 'Kernel Identifier', 'b2').
-tag_db(0x4F, 1, 'Application Identifier (AID) – Card', 'b5..16').
-tag_db(0x50, 1, 'Application Label', 'b1..16').
-tag_db(0x87, 1, 'Application Priority Indicator', 'b1').
-tag_db(0x84, 1, 'Dedicated File (DF) Name', 'b..16').
-tag_db(0x6F, 1, 'File Control Information (FCI)', 't..').
-tag_db(0x9F38, 2, 'PDOL', 'b..64').
-tag_db(0x9F5A, 2, 'Application Program Identifier (Kernel 3)', 'b1..16').
-tag_db(0x9F5A, 2, 'Membership Product Identifier (Kernel 4)', 'b1').
-tag_db(0x57, 1, 'Track 2 Equivalent Data', 'b..19').
-tag_db(0x5F34, 2, 'Application PAN Sequence Number', 'n2').
-tag_db(0x9F10, 2, 'Issuer Application Data', 'b..32').
-tag_db(0x9F26, 2, 'Application Cryptogram', 'b8').
-tag_db(0x9F27, 2, 'Cryptogram Information Data', 'b1').
-tag_db(0x9F36, 2, 'ATC', 'b2').
-tag_db(0x9F6C, 2, 'CTQ', 'b2').
-tag_db(0x9F66, 2, 'TTQ (Kernel 3)', 'b4').
-tag_db(0x9F66, 2, 'PUNATC (Kernel 2)', false).
-tag_db(0x9F02, 2, 'Amount Authorised (numeric)', 'n12').
-tag_db(0x5F2A, 2, 'Transaction Currency Code', 'n3').
-tag_db(0x9F37, 2, 'Unpredictable Number', 'b4').
-tag_db(0x9F5B, 2, 'Issuer Script Results (Kernel 3)', false).
-tag_db(0x9F5B, 2, 'DSDOL (Kernel 2)', false).
-tag_db(0x9F5B, 2, 'Product Membership Number (Kernel 4)', false).
+tag_db(0x82,   b(1,6),  "File descriptor").
+tag_db(0x83,   b(2,2),  "File identifier").
+tag_db(0xA5,   t,       "FCI Proprietary Template").
+tag_db(0x77,   t,       "Response Message Template Format 2").
+tag_db(0xBF0C, t,       "FCI Issuer Discretionary Data").
+tag_db(0x61,   t,       "Application Template").
+tag_db(0x87,   b(1,1),  "Application Priority Indicator").
+tag_db(0x9F2A, b(2,2),  "Kernel Identifier").
+tag_db(0x4F,   b(5,16), "Application Identifier (AID) – Card").
+tag_db(0x50,   b(1,16), "Application Label").
+tag_db(0x87,   b(1,1),  "Application Priority Indicator").
+tag_db(0x84,   b(0,16), "Dedicated File (DF) Name").
+tag_db(0x6F,   t,       "File Control Information (FCI)").
+tag_db(0x9F38, b(0,64), "PDOL").
+tag_db(0x9F5A, b(1,16), "Application Program Identifier (Kernel 3)").
+tag_db(0x9F5A, b(1),    "Membership Product Identifier (Kernel 4)").
+tag_db(0x57,   b(0,19), "Track 2 Equivalent Data").
+tag_db(0x5F34, n(2),    "Application PAN Sequence Number").
+tag_db(0x9F10, b(0,32), "Issuer Application Data").
+tag_db(0x9F26, b(8,8),  "Application Cryptogram").
+tag_db(0x9F27, b(1,1),  "Cryptogram Information Data").
+tag_db(0x9F36, b(2,2),  "ATC").
+tag_db(0x9F6C, b(2,2),  "CTQ").
+tag_db(0x9F66, b(4,4),  "TTQ (Kernel 3)").
+tag_db(0x9F66, false,   "PUNATC (Kernel 2)").
+tag_db(0x9F02, n(12),   "Amount Authorised (numeric)").
+tag_db(0x5F2A, n(3),    "Transaction Currency Code").
+tag_db(0x9F37, b(4,4),  "Unpredictable Number").
+tag_db(0x9F5B, false,   "Issuer Script Results (Kernel 3)").
+tag_db(0x9F5B, false,   "DSDOL (Kernel 2)").
+tag_db(0x9F5B, false,   "Product Membership Number (Kernel 4)").
 
 dol([]) --> [].
 dol([H|T]) -->
-    {   tag_db(H, 1, _, Type),
+    {   tag_db(H, Type, _),
+        tag_property(H, length(1)),
         phrase(value(Type, _, N), _) }, [H,N], dol(T).
 dol([H|T]) -->
-    {   tag_db(H, 2, _, Type),
+    {   tag_db(H, Type, _),
+        tag_property(H, length(2)),
         number_bytes(H, [A,B]),
         phrase(value(Type, _, N), _) }, [A,B,N], dol(T).
 

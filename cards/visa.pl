@@ -15,7 +15,7 @@ pp(22090, 0x5F34, [0x01]).
 pp(22090, 0x9F10, A) :- visa_discretionary_data(A).
 pp(22090, 0x9F26, [0x13,0xC9,0x1D,0x65,0xA9,0x10,0xC9,0x56]).
 pp(22090, 0x9F27, [N]) :- cryptogram_information_data(Bits, R), decisive_result(R, _), bits(8, Bits, N).
-pp(22090, 0x9F36, [A,B]) :- number_bytes(333, [A,B]).
+pp(22090, 0x9F36, [A,B]) :- number_bytes(2, [A,B]).
 pp(22090, 0x9F6C, B) :- decisive_result(_, R), ctq([R], B).
 pp(22090, 0x87,   [0x01]).
 
