@@ -9,7 +9,6 @@ GPROLOG_LIBDIR := /usr/share/gprolog/lib
 CARD           := discover
 
 .PHONY: start clean build start-hce start-int inter check
-.INTERMEDIATE: all-init.pl all-ut.pl
 
 vpath %.pl cards compat
 
@@ -20,10 +19,11 @@ start-hce: hce | in.fifo out.fifo
 	exec ./$< >in.fifo <out.fifo
 start-sim: sim | in.fifo out.fifo
 	exec ./$<
-start-int: all-init.pl | in.fifo out.fifo
-	exec prologs -p $(PROLOG) -g main $<
-check: all-ut.pl
-	exec prologs -p $(PROLOG) -g '(test,!;true)' $<
+start-int: $(PROLOG).pl sim.pl $(CARD).pl init.pl | in.fifo out.fifo
+	exec prologs -p $(PROLOG) -g main $^
+check-%: %.pl ut.pl sim.pl $(CARD).pl
+	exec prologs -p $* $^
+check: $(addprefix check-,$(patsubst compat/%.pl,%,$(wildcard compat/*.pl)))
 clean: F := $(wildcard hce sim *.s *.o *.fifo *.wam *.ma)
 clean:
 	$(if $(strip $F),$(RM) -- $F)
@@ -35,8 +35,6 @@ sim: LDLIBS  := $(GPROLOG_LIBDIR)/all_pl_bips.o -lbips_pl -lengine_pl -llinedit 
 sim: LDFLAGS += -L$(GPROLOG_LIBDIR)
 sim: init.o sim.o $(CARD).o gnu.o
 	$(LINK.o) -o $@ $^ $(LDLIBS)
-all-%.pl: $(PROLOG).pl %.pl sim.pl $(CARD).pl
-	cat $^ > $@
 
 %.wam: %.pl
 	pl2wam --wam-for-native --fast-math -o $@ $<
