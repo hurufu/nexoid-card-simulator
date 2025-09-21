@@ -28,7 +28,7 @@ doublet(Lowest, N) --> [+A,+B], { maplist(between(0, 255), [A,B]), N is (A << 8)
 nbytes(L, N) --> foldl_(count(in_, N), L, 0, N).
 in_(E) --> [+E].
 
-put_bytes(Stream) --> [] | [-Byte], { put_byte(Stream, Byte) }, put_bytes(Stream).
+put_bytes(Stream) --> [] ; [-Byte], { put_byte(Stream, Byte) }, put_bytes(Stream).
 get_bytes(Stream, B, A) :-
     get_byte(Stream, Byte), Byte >= 0, A = [+Byte|X], (X = B; get_bytes(Stream, B, X)).
 
@@ -37,12 +37,12 @@ response_for(select(aid_prefix,Occurrence,fci), Dt, Qe, Rs, 0x90, 0x00) :-
     select(by_dfname, Occurrence, Fid, L),
     fci(Fid, Fci),
     phrase(ber(Fci,Length), Tmp),
-    maplist(is, Rs, Tmp),
+    maplist((is), Rs, Tmp),
     le_ok(Qe, Length).
 response_for(get_processing_options, _, Qe, Rs, 0x90, 0x00) :-
     phrase(gpo_(22090), GPO),
     phrase(ber([0x77-GPO], Length), Tmp),
-    maplist(is, Rs, Tmp),
+    maplist((is), Rs, Tmp),
     le_ok(Qe, Length).
 
 le_ok(Qe, Length) :- le_max(Qe, Max), Length =< Max.
@@ -282,10 +282,10 @@ bits(Exp, RBits, N) :-
     reverse(Bits, RBits),
     (ground(N) ->
         foldl(bb(N), Bits, 0, Exp), 1 << Exp > N
-    ;   foldl(bv, Bits, 0:0, Expression:Check), N is Expression, Exp =:= Check).
+    ;   foldl(bv, Bits, (0,0), (Expression,Check)), N is Expression, Exp =:= Check).
 
 bb(Byte, Bit, Exp, NextExp) :- Bit is (Byte /\ 1 << Exp) >> Exp, NextExp is Exp + 1.
-bv(Bit, A:Exp, A + (Bit << Exp):(Exp + 1)).
+bv(Bit, (A,Exp), (A + (Bit << Exp),(Exp + 1))).
 
 % EMV Book 3 table CCD 3
 cryptogram_information_data([0,0,0,0,0,0,0,0], aac).
