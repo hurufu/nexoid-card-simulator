@@ -24,7 +24,7 @@ start-int: $(PROLOG).pl sim.pl $(CARD).pl init.pl | in.fifo out.fifo
 check-%: %.pl ut.pl sim.pl $(CARD).pl
 	exec prologs -p $* $^
 check: $(addprefix check-,$(patsubst compat/%.pl,%,$(wildcard compat/*.pl)))
-clean: F := $(wildcard hce sim *.s *.o *.fifo *.wam *.ma)
+clean: F := $(wildcard hce sim *.s *.o *.fifo *.wam *.ma *.xwam compat/*.xwam cards/*.xwam)
 clean:
 	$(if $(strip $F),$(RM) -- $F)
 

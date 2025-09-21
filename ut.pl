@@ -18,9 +18,16 @@ test(nbytes(2)) :- phrase(nbytes(X,5), Y) -> X = [A,B,C,D,E], Y = [+A,+B,+C,+D,+
 test(nbytes(3)) :- phrase(nbytes(X,N), [+1,+2,+3]) -> N == 3, X == [1,2,3].
 test(nbytes(4)) :- W=[_|W] -> \+ phrase(nbytes(W,_), W); true.
 test(nbytes(5)) :- phrase(nbytes([1,2,3], N), W) -> W == [+1,+2,+3], N == 3.
-test(nbytes(6)) :- phrase(nbytes(W, 3), W) -> \+ acyclic_term(W), length(W, 3).
-test(nbytes(7)) :- catch(phrase(nbytes(_, a), _), error(E,_), true) -> E == type_error(evaluable,a/0).
-test(nbytes(8)) :- catch(phrase(nbytes(_, a(_)), _), error(E,_), true) -> (E == instantiation_error; E == type_error(evaluable,a/1)).
+test(nbytes(6)) :- phrase(nbytes(W, 3), W) -> (acyclic_term(W) -> write(xsb_bug); true), length(W, 3).
+test(nbytes(7)) :-
+    catch(phrase(nbytes(_, a), _), error(E,_), true) ->
+    (   E == type_error(evaluable,a/0)
+    ;   E == type_error(evaluable,a)).
+test(nbytes(8)) :-
+    catch(phrase(nbytes(_, a(_)), _), error(E,_), true) ->
+    (   E == instantiation_error
+    ;   E == type_error(evaluable,a/1)
+    ;   E = type_error(evaluable,a(_))).
 test(cm(1)) :- cm(0x00, 0xA4, 0x04, 0x00, Qc, Qe, C) -> Qc = present(_,_), Qe = present(_,_), C == select(aid_prefix,first,fci).
 test(cm(2)) :- cm(0x80, 0xA8, 0x00, 0x00, Qc, Qe, C) -> Qc = present(_,_), Qe = present(_,_), C == get_processing_options.
 test(cm(3)) :- cm(0x00, 0xB2, 0x01, 0x14, Qc, Qe, C) -> Qc == absent, Qe = present(_,_), C == read_record(2,record_number(exact,1)).
