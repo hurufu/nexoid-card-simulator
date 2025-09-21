@@ -25,8 +25,8 @@ response(Cmd, Dt, Qe) --> { response_for(Cmd, Dt, Qe, Response, Sw1, Sw2) }, out
 singlet(Lowest, A) --> [+A], { between(0, 255, A), A >= Lowest }.
 doublet(Lowest, N) --> [+A,+B], { maplist(between(0, 255), [A,B]), N is (A << 8) + B, N >= Lowest }.
 
-nbytes(Bytes, N) --> { acyclic_term(Bytes) }, foldd(count_input(N), Bytes, 0, N).
-count_input(N, E, V0, Vn) --> { \+var(N), V0 =:= N -> false; Vn is V0 + 1 }, [+E].
+nbytes(L, N) --> foldl_(count(in_, N), L, 0, N).
+in_(E) --> [+E].
 
 put_bytes(Stream) --> [] | [-Byte], { put_byte(Stream, Byte) }, put_bytes(Stream).
 get_bytes(Stream, B, A) :-
@@ -70,9 +70,6 @@ value(n(I), V, N) --> { N is ceiling(I / 2) }, length_(V, N).
 number_bytes(N, [A,B]) :-
     bits(16, [A0,A1,A2,A3,A4,A5,A6,A7,B0,B1,B2,B3,B4,B5,B6,B7], N),
     maplist(bits(8), [[A0,A1,A2,A3,A4,A5,A6,A7],[B0,B1,B2,B3,B4,B5,B6,B7]],[A,B]).
-
-foldd(_, [], V, V) --> [].
-foldd(G__3, [H|T], V0, Vlast) --> call(G__3, H, V0, Vnext), foldd(G__3, T, Vnext, Vlast).
 
 % Interface
 nesting(Df, Fid) :- pc(Df, Fid), type(df, Df).
@@ -344,3 +341,17 @@ cvr_first_generate_ac(arqc) --> [1,0].
 
 bit(1) --> [1].
 bit(0) --> [0].
+
+
+%% foldl_(G__3, L1, V0, Vlast)//
+%
+foldl_(_, [], V, V) --> [].
+foldl_(G__3, [H1|T1], V0, Vlast) --> { acyclic_term(T1) }, call(G__3, H1, V0, Vnext), foldl_(G__3, T1, Vnext, Vlast).
+
+
+%% length_(L, N)//
+%
+length_(L, N) --> { acyclic_term(L) }, foldl_(count(noop, N), L, 0, N).
+
+count(T_1, N, E, V0, Vn) --> { \+var(N), V0 =:= N -> false; Vn is V0 + 1 }, call(T_1, E).
+noop(E) --> [E].
