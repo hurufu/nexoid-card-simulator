@@ -6,7 +6,7 @@ TARGET_MACH    := --64
 LDFLAGS        := -fhardened -Whardened
 PROLOG         := scryer
 GPROLOG_LIBDIR := /usr/share/gprolog/lib
-CARD           := discover
+CARD           := visa
 
 .PHONY: start clean build start-hce start-int inter check
 
@@ -23,7 +23,7 @@ start-int: $(PROLOG).pl sim.pl $(CARD).pl init.pl | in.fifo out.fifo
 	exec prologs -p $(PROLOG) -g main $^
 check-%: %.pl ut.pl sim.pl $(CARD).pl
 	exec prologs -p $* $^
-check: $(filter-out %-tu,$(addprefix check-,$(patsubst compat/%.pl,%,$(wildcard compat/*.pl))))
+check: $(filter-out %-init,$(filter-out %-tu,$(addprefix check-,$(patsubst compat/%.pl,%,$(wildcard compat/*.pl)))))
 clean: F := $(wildcard hce sim *.s *.o *.fifo *.wam *.ma *.xwam compat/*.xwam cards/*.xwam)
 clean: F += $(wildcard *.itf *.po compat/*.itf compat/*.po cards/*.itf cards/*.po)
 clean:
@@ -34,11 +34,11 @@ hce: hce.c
 	$(LINK.c) -o $@ $< $(LDLIBS)
 sim: LDLIBS  := $(GPROLOG_LIBDIR)/all_pl_bips.o -lbips_pl -lengine_pl -llinedit -lm
 sim: LDFLAGS += -L$(GPROLOG_LIBDIR)
-sim: init.o sim.o $(CARD).o gnu.o
+sim: gnu-init.o init.o sim.o $(CARD).o gnu.o
 	$(LINK.o) -o $@ $^ $(LDLIBS)
 
 %.wam: %.pl
-	pl2wam --wam-for-native --fast-math -o $@ $<
+	pl2wam --wam-for-native -o $@ $<
 %.ma: %.wam
 	wam2ma -o $@ $<
 %.s: %.ma
