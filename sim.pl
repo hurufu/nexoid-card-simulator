@@ -72,10 +72,10 @@ number_bytes(N, [A,B]) :-
     maplist(bits(8), [[A0,A1,A2,A3,A4,A5,A6,A7],[B0,B1,B2,B3,B4,B5,B6,B7]],[A,B]).
 
 % Interface
-nesting(Df, Fid) :- pc(Df, Fid), type(df, Df).
-type(Type, Fid) :- ft(Fid, Type).
-type(df, Fid) :- ft(Fid, mf).
-type(df, Fid) :- ft(Fid, adf).
+nesting(Df, Fid) :- pc(Df, Fid), type_fid(df, Df).
+type_fid(Type, Fid) :- ft(Fid, Type).
+type_fid(df, Fid) :- ft(Fid, mf).
+type_fid(df, Fid) :- ft(Fid, adf).
 abs(Fid, Path) :- phrase(absolute_path(Fid), Path).
 absolute_path(16128) --> [16128].
 absolute_path(C) --> { nesting(P,C) }, absolute_path(P), [C].
@@ -198,7 +198,7 @@ cla_property([0,1,_,1,_,_,_,_], chaining_control(partial)).
 cla_property([0,_,_,_,_,_,_,_], class(interindustry)).
 cla_property([1,A,B,C,D,E,F,G], class(proprietary)) :-  member(0, [A,B,C,D,E,F,G]).
 
-:- dynamic(channel_supported/0).
+channel_supported :- false.
 
 %% cm(+Cla, +Ins, +P1, +P2, -Qc, -Qe, -Command).
 %

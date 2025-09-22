@@ -25,6 +25,7 @@ check-%: %.pl ut.pl sim.pl $(CARD).pl
 	exec prologs -p $* $^
 check: $(filter-out %-tu,$(addprefix check-,$(patsubst compat/%.pl,%,$(wildcard compat/*.pl))))
 clean: F := $(wildcard hce sim *.s *.o *.fifo *.wam *.ma *.xwam compat/*.xwam cards/*.xwam)
+clean: F += $(wildcard *.itf *.po compat/*.itf compat/*.po cards/*.itf cards/*.po)
 clean:
 	$(if $(strip $F),$(RM) -- $F)
 
