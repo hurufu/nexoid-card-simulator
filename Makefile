@@ -37,8 +37,9 @@ sim: LDFLAGS += -L$(GPROLOG_LIBDIR)
 sim: gnu-init.o init.o sim.o $(CARD).o gnu.o
 	$(LINK.o) -o $@ $^ $(LDLIBS)
 
+# TODO: Remove ceiling functions
 %.wam: %.pl
-	pl2wam --wam-for-native -o $@ $<
+	pl2wam --wam-for-native --fast-math -o $@ $<
 %.ma: %.wam
 	wam2ma -o $@ $<
 %.s: %.ma
