@@ -3,8 +3,9 @@ main :- phrase(exchange, []) -> main; true.
 exchange --> get_bytes(rd), command_response_pair, put_bytes(wr).
 
 % section 5.1
-command_response_pair -->
-    hdr(Cmd, Qc, Qe), lc(Qc), cmd(Qc, Dt), le(Qc, Qe), response(Cmd, Dt, Qe).
+command_response_pair --> command(Cmd, Dt, Qe), response(Cmd, Dt, Qe).
+
+command(Cmd, Dt, Qe) --> hdr(Cmd, Qc, Qe), lc(Qc), cmd(Qc, Dt), le(Qc, Qe).
 
 hdr(Cmd, Qc, Qe) --> [+Cla,+Ins,+P1,+P2], { cm(Cla, Ins, P1, P2, Qc, Qe, Cmd) }.
 
