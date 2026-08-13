@@ -66,20 +66,12 @@ tlv(T-V, L0+L1) --> tag(T, spec(S), L0), len(L1, VL), value(S, V, VL).
 tag(T, spec(S), 1) --> { tag_property(T, length(1)), tag_property(T, spec(S)) }, [T].
 tag(T, spec(S), 2) --> { tag_property(T, length(2)), tag_property(T, spec(S)), number_bytes(T,[B1,B2]) }, [B1,B2].
 len(VL+1, VL) --> [VL].
-value(t, _, _, V, L) --> ber(V, L).
-value(F, L, U, V, N) --> length_between_(data_element_format(F), V, L, U, N).
-%value(n(L,U), V, N) --> { N is I div 2 + I mod 2 }, value_(n, I, I, V, N).
-
-data_element_format(F, E) --> [E], { var(E), !; def(F, E) }.
-def(ans) :- def(ans, V).
-def(an) :- def(an, V).
-def(n) :- def(b(V)), A /\ 0x0F =< 9, (A /\ 0xF0) >> 4 =< 9.
-def(b) :- between(0, 255, A).
-
-s(SetName, V) :- alphabet(SetName, A), memberchk(V, A).
-alphabet(ans(V), [' '|T]) :- alphabet(an(V), T).
-alphabet(an(_), "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789").
-
+value(t, V, L) --> ber(V, L).
+value(b(L,U), V, N) --> { between(L, U, N) }, length_(V, N).
+value(ans(L,U), V, N) --> { between(L, U, N) }, length_(V, N).
+value(an(L,U), V, N) --> { between(L, U, N) }, length_(V, N).
+value(n(I), V, N) --> { N is ceiling(I / 2) }, length_(V, N).
+value(cn(L,U), V, N) --> { between(L, U, X), N is ceiling(X/2) }, length_(V, N).
 
 number_bytes(N, [A,B]) :-
     bits(16, [A0,A1,A2,A3,A4,A5,A6,A7,B0,B1,B2,B3,B4,B5,B6,B7], N),
@@ -139,7 +131,7 @@ tag_property(Id, length(L)) :- tag_db(Id, _, _), L is ceiling(log(Id + 1) / log(
 tag_property(Id, name(N)) :- tag_db(Id, _, N).
 tag_property(Id, spec(S)) :- tag_db(Id, S, _).
 
-tag_db(0x82,   b(1,6),    "File descriptor", class77_80).
+tag_db(0x82,   b(1,6),    "File descriptor").
 tag_db(0x83,   b(2,2),    "File identifier").
 tag_db(0xA5,   t,         "FCI Proprietary Template").
 tag_db(0x77,   t,         "Response Message Template Format 2").
@@ -377,23 +369,6 @@ contactless_application_capabilities_2(numeric(N)) --> [A,B,C,D,E,F,G,H], { bits
 %
 cvr_1(A,B,C,D,E,F) --> cvr_second_generate_ac(A), cvr_first_generate_ac(B), bit(C), bit(D), { D = 0 -> E = 0; D = 1 }, bit(E), bit(F).
 
-
-ccc(O-V) :- foldl(ddd, O, _, V).
-
-ddd(E, V, V) :- ccc(V, E).
-
-ccc([0,0,_,_], second_generate_ac(aac)).
-ccc([0,1,_,_], second_generate_ac(tc)).
-ccc([_,_,0,0], first_generate_ac(aac)).
-ccc([_,_,0,1], first_generate_ac(tc)).
-
-ccc_parts(second_generate_ac(_)).
-ccc_parts(first_generate_ac(_)).
-
-
-maplist_(_, []) --> [].
-maplist_(G__1, [H|T]) --> call(G__1, H), maplist_(G__1, T).
-
 % Application Cryptogram Type Returned in 2nd GENERATE AC
 cvr_second_generate_ac(aac) --> [0,0].
 cvr_second_generate_ac(tc) --> [0,1].
@@ -411,7 +386,6 @@ bit(0) --> [0].
 
 %% foldl_(G__3, L1, V0, Vlast)//
 %
-foldl_(_, L, _, _) --> { L \= [], L \= [_|_], _ =.. [t|L] }.
 foldl_(_, [], V, V) --> [].
 foldl_(G__3, [H1|T1], V0, Vlast) --> { acyclic_term(T1) }, call(G__3, H1, V0, Vnext), foldl_(G__3, T1, Vnext, Vlast).
 
@@ -422,17 +396,3 @@ length_(L, N) --> { acyclic_term(L) }, foldl_(count(noop, N), L, 0, N).
 
 count(T_1, N, E, V0, Vn) --> { \+var(N), V0 =:= N -> false; Vn is V0 + 1 }, call(T_1, E).
 noop(E) --> [E].
-
-
-length_between_(G__1, L, Lower, Upper, N) -->
-    { var(N) -> true; N >= Lower, N =< Upper },
-    foldl_(between_count_(G__1, Upper, N), L, 0, N), { N >= Lower }.
-
-between_count_(G__1, Upper, N, E, V0, Vn) --> { V0 == N -> false; Vn is V0 + 1, Vn =< Upper }, call(G__1, E).
-
-
-%lb --> foldl_( count
-%
-%noop, [E] --> [E].
-%between_(L,U) --> [].
-%length_, 
