@@ -144,7 +144,7 @@ tag_db(0x50,   b(1,16),   "Application Label").
 tag_db(0x87,   b(1,1),    "Application Priority Indicator").
 tag_db(0x84,   b(0,16),   "Dedicated File (DF) Name").
 tag_db(0x6F,   t,         "File Control Information (FCI)").
-tag_db(0x9F38, b(0,64),   "PDOL").
+tag_db(0x9F38, b(0,64),   "Processing Options DOL (PDOL)").
 tag_db(0x9F5A, b(1,16),   "Application Program Identifier (Kernel 3)").
 tag_db(0x9F5A, b(1),      "Membership Product Identifier (Kernel 4)").
 tag_db(0x57,   b(0,19),   "Track 2 Equivalent Data").
@@ -152,16 +152,18 @@ tag_db(0x5F34, n(2),      "Application PAN Sequence Number").
 tag_db(0x9F10, b(0,32),   "Issuer Application Data").
 tag_db(0x9F26, b(8,8),    "Application Cryptogram").
 tag_db(0x9F27, b(1,1),    "Cryptogram Information Data").
-tag_db(0x9F36, b(2,2),    "ATC").
-tag_db(0x9F6C, b(2,2),    "CTQ").
-tag_db(0x9F66, b(4,4),    "TTQ (Kernel 3)").
-tag_db(0x9F66, false,     "PUNATC (Kernel 2)").
+tag_db(0x9F36, b(2,2),    "Application Transaction Counter (ATC)").
+tag_db(0x9F6C, b(2,2),    "Card Transaction Qualifiers (CTQ)").
+tag_db(0x9F66, b(4,4),    "Terminal Transaction Qualifiers (TTQ) (Kernel 3)").
+tag_db(0x9F63, b(6,6),    "Positions of UN and ATC (PUNATC) (Kernel 2) (Track 1)").
+tag_db(0x9F64, b(1,1),    "Number of ATC digits (NATC) (Kernel 2) (Track 1)").
+tag_db(0x9F65, b(2,2),    "Positions of CVC3 (PCVC3) (Kernel 2) (Track 2)").
 tag_db(0x9F02, n(12),     "Amount, Authorised (numeric)").
 tag_db(0x9F03, n(12),     "Amount, Other (numeric)").
 tag_db(0x5F2A, n(3),      "Transaction Currency Code").
-tag_db(0x9F37, b(4,4),    "Unpredictable Number").
-tag_db(0x9F5B, false,     "Issuer Script Results (Kernel 3)").
-tag_db(0x9F5B, false,     "DSDOL (Kernel 2)").
+tag_db(0x9F37, b(4,4),    "Unpredictable Number (UN)").
+tag_db(0x9F5B, b(0,252),  "Issuer Script Results (Kernel 3)").    % Max size is var.
+tag_db(0x9F5B, b(0,252),  "Data Storage DOL (DSDOL) (Kernel 2)"). %      ''
 tag_db(0x9F5B, false,     "Product Membership Number (Kernel 4)").
 tag_db(0x9F28, b(2,2),    "Contactless Application Capabilities Type").
 tag_db(0x9F35, n(2),      "Terminal Type").
@@ -169,21 +171,21 @@ tag_db(0x5F20, ans(2,26), "Cardholder Name").
 tag_db(0x8C,   b(0,252),  "Card Risk Management DOL 1").
 tag_db(0x8D,   b(0,252),  "Card Risk Management DOL 2").
 tag_db(0x9F1A, n(3),      "Terminal Country Code").
-tag_db(0x95,   b(5,5),    "TVR").
+tag_db(0x95,   b(5,5),    "Terminal Verification Results (TVR)").
 tag_db(0x9A,   n(6),      "Transaction Date").
 tag_db(0x9C,   n(2),      "Transaction Type").
 tag_db(0x8A,   an(2),     "Authorisation Response Code").
 tag_db(0x9F08, b(2,2),    "Application Version").
-tag_db(0x9F07, b(2,2),    "Application Usage Control").
+tag_db(0x9F07, b(2,2),    "Application Usage Control (AUC)").
 tag_db(0x9F42, n(3),      "Application Currency Code").
 tag_db(0x5F30, n(3),      "Service Code").
 tag_db(0x5F25, n(6),      "Application Effective Date").
 tag_db(0x5F24, n(6),      "Application Expiration Date").
-tag_db(0x5A,   cn(0,19),  "PAN").
-tag_db(0x9F0D, b(5,5),    "IAC - Default").
-tag_db(0x9F0E, b(5,5),    "IAC - Denial").
-tag_db(0x9F0F, b(5,5),    "IAC - Online").
-tag_db(0x8E,   b(0,252),  "CVM List").
+tag_db(0x5A,   cn(0,19),  "Application Primary Account Number (PAN)").
+tag_db(0x9F0D, b(5,5),    "Issuer Action Code (IAC) - Default").
+tag_db(0x9F0E, b(5,5),    "Issuer Action Code (IAC) - Denial").
+tag_db(0x9F0F, b(5,5),    "Issuer Action Code (IAC) - Online").
+tag_db(0x8E,   b(0,252),  "Cardholder Verification Method (CVM) List").
 
 dol([]) --> [].
 dol([H|T]) -->
