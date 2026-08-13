@@ -23,11 +23,13 @@ le(absent, present(extended,Ne)) --> [+0], doublet(0, Ne).
 
 response(Cmd, Dt, Qe) --> { response_for(Cmd, Dt, Qe, Response, Sw1, Sw2) }, output([Sw1,Sw2]), output(Response).
 
-singlet(Lowest, A) --> [+A], { between(0, 255, A), A >= Lowest }.
-doublet(Lowest, N) --> [+A,+B], { maplist(between(0, 255), [A,B]), N is (A << 8) + B, N >= Lowest }.
+singlet(Lowest, A) --> rbyte(A), { A >= Lowest }.
+doublet(Lowest, N) --> rbyte(A), rbyte(B), { N is (A << 8) + B, N >= Lowest }.
 
 nbytes(L, N) --> foldl_(count(in_, N), L, 0, N).
 in_(E) --> [+E].
+
+rbyte(N) --> [+N], { between(0, 255, N) }.
 
 put_bytes(Stream) --> [] ; [-Byte], { put_byte(Stream, Byte) }, put_bytes(Stream).
 get_bytes(Stream, B, A) :-
