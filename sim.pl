@@ -63,8 +63,8 @@ output([H|T]), [-H] --> output(T).
 ber([], 0) --> [].
 ber([Tlv|Rest], L0+L1) --> tlv(Tlv, L0), ber(Rest, L1).
 tlv(T-V, L0+L1) --> tag(T, spec(S), L0), len(L1, VL), value(S, V, VL).
-tag(T, spec(S), 1) --> { tag_property(T, length(1)), tag_property(T, spec(S)) }, [T].
-tag(T, spec(S), 2) --> { tag_property(T, length(2)), tag_property(T, spec(S)), number_bytes(T,[B1,B2]) }, [B1,B2].
+tag(T, spec(S), 1) --> { tag_properties(T, [length(1),spec(S)]) }, [T].
+tag(T, spec(S), 2) --> { tag_properties(T, [length(2),spec(S)]), number_bytes(T,[B1,B2]) }, [B1,B2].
 len(VL+1, VL) --> [VL].
 value(t, V, L) --> ber(V, L).
 value(b(L,U), V, N) --> { between(L, U, N) }, length_(V, N).
@@ -125,6 +125,8 @@ duplicates :- forall(ft(F, _), findall(X, ft(F,X), [_])).
 ambiguous_type :- \+((ft(Fid, T1), ft(Fid, T2), T1 \= T2)).
 ef_hosts_files :- \+((ft(Ef, ef), pc(Ef, _))).
 %ef_has_dfname :- forall(fn(F, _), type(df, F)).
+
+tag_properties(Id, L) :- maplist(tag_property(Id), L).
 
 tag_property(Id, value(Id)) :- tag_db(Id, _, _).
 tag_property(Id, length(L)) :- tag_db(Id, _, _), L is ceiling(log(Id + 1) / log(2) / 8).
