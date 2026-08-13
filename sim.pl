@@ -384,6 +384,7 @@ bit(1) --> [1].
 bit(0) --> [0].
 
 
+:- meta_predicate(foldl_(5,?,?,?,?,?)).
 %% foldl_(G__3, L1, V0, Vlast)//
 %
 foldl_(_, [], V, V) --> [].
@@ -392,7 +393,8 @@ foldl_(G__3, [H1|T1], V0, Vlast) --> { acyclic_term(T1) }, call(G__3, H1, V0, Vn
 
 %% length_(L, N)//
 %
-length_(L, N) --> { acyclic_term(L) }, foldl_(count(noop, N), L, 0, N).
+length_(L, N) --> { acyclic_term(L) }, foldl_(count_(noop_, N), L, 0, N).
 
-count(T_1, N, E, V0, Vn) --> { \+var(N), V0 =:= N -> false; Vn is V0 + 1 }, call(T_1, E).
-noop(E) --> [E].
+:- meta_predicate(count_(3,?,?,?,?,?,?)).
+count_(T_1, N, E, V0, Vn) --> { \+var(N), V0 =:= N -> false; Vn is V0 + 1 }, call(T_1, E).
+noop_(E) --> [E].
