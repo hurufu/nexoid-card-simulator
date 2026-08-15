@@ -79,7 +79,8 @@ format_rapdu(Stream, Tv, Sw1, Sw2) :-
 
 format_explain([], Prefix, Stream) :- format(Stream, '~s', [Prefix]).
 format_explain([T-V|Rest], Prefix, Stream) :-
-    tag_properties_defaults(T, [name(N),spec(S)], [name("Unknown"),spec(false)]),
+    tag_db_kernel(Kernel),
+    tag_properties_defaults(T, Kernel, [name(N),spec(S)], [name("Unknown"),spec(false)]),
     format(Stream, '~s 0x~16R ~s (~w): ', [Prefix,T,N,S]),
     format_value(S, V, Prefix, Stream),
     format(Stream, '~n', []),
@@ -120,8 +121,8 @@ output([H|T]), [-H] --> output(T).
 ber([], 0) --> [].
 ber([Tlv|Rest], L0+L1) --> tlv(Tlv, L0), ber(Rest, L1).
 tlv(T-V, L0+L1) --> tag(T, spec(S), L0), len(L1, VL), value(S, V, VL).
-tag(T, spec(S), 1) --> { tag_properties(T, [length(1),spec(S)]) }, [T].
-tag(T, spec(S), 2) --> { tag_properties(T, [length(2),spec(S)]), number_bytes(T,[B1,B2]) }, [B1,B2].
+tag(T, spec(S), 1) --> { tag_properties(T, _, [length(1),spec(S)]) }, [T].
+tag(T, spec(S), 2) --> { tag_properties(T, _, [length(2),spec(S)]), number_bytes(T,[B1,B2]) }, [B1,B2].
 len(VL+1, VL) --> [VL].
 value(t, V, L) --> ber(V, L).
 value(b(L,U), V, N) --> { between(L, U, N) }, length_(V, N).
@@ -205,77 +206,79 @@ optional_pp(Fid, Tag) --> { pp(Fid, Tag, Value) } -> [Tag-Value]; [].
 %% EMV tag database %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% {
 
-tag_properties_defaults(Id, L, D) :- maplist(tag_property_default(Id), L, D).
-tag_properties(Id, L) :- maplist(tag_property(Id), L).
+tag_properties_defaults(Id, Kernel, L, D) :- maplist(tag_property_default(Id,Kernel), L, D).
+tag_properties(Id, Kernel, L) :- maplist(tag_property(Id,Kernel), L).
 
-tag_property_default(Id, Property, Default) :-
+tag_property_default(Id, Kernel, Property, Default) :-
     ground(Default),
     (
-        \+ tag_property(Id, Property) ->
+        \+ tag_property(Id, Kernel, Property) ->
             Property = Default
-        ;   tag_property(Id, Property)
+        ;   tag_property(Id, Kernel, Property)
     ).
 
-tag_property(Id, value(Id)) :- tag_db(Id, _, _).
-tag_property(Id, length(L)) :- tag_db(Id, _, _), L is ceiling(log(Id + 1) / log(2) / 8).
-tag_property(Id, name(N)) :- tag_db(Id, _, N).
-tag_property(Id, spec(S)) :- tag_db(Id, S, _).
+tag_property(Id, Kernel, value(Id)) :- tag_db(Id, _, Kernel, _).
+tag_property(Id, Kernel, length(L)) :- tag_db(Id, _, Kernel, _), L is ceiling(log(Id + 1) / log(2) / 8).
+tag_property(Id, Kernel, name(N)) :- tag_db(Id, _, Kernel, N).
+tag_property(Id, Kernel, spec(S)) :- tag_db(Id, S, Kernel, _).
 
-tag_db(0x82,   b(1,6),    "File descriptor").
-tag_db(0x83,   b(2,2),    "File identifier").
-tag_db(0xA5,   t,         "FCI Proprietary Template").
-tag_db(0x77,   t,         "Response Message Template Format 2").
-tag_db(0xBF0C, t,         "FCI Issuer Discretionary Data").
-tag_db(0x61,   t,         "Application Template").
-tag_db(0x87,   b(1,1),    "Application Priority Indicator").
-tag_db(0x9F2A, b(2,2),    "Kernel Identifier").
-tag_db(0x4F,   b(5,16),   "Application Identifier (AID) – Card").
-tag_db(0x50,   b(1,16),   "Application Label").
-tag_db(0x87,   b(1,1),    "Application Priority Indicator").
-tag_db(0x84,   b(0,16),   "Dedicated File (DF) Name").
-tag_db(0x6F,   t,         "File Control Information (FCI)").
-tag_db(0x9F38, b(0,64),   "Processing Options DOL (PDOL)").
-tag_db(0x9F5A, b(1,16),   "Application Program Identifier (Kernel 3)").
-tag_db(0x9F5A, b(1),      "Membership Product Identifier (Kernel 4)").
-tag_db(0x57,   b(0,19),   "Track 2 Equivalent Data").
-tag_db(0x5F34, n(2),      "Application PAN Sequence Number").
-tag_db(0x9F10, b(0,32),   "Issuer Application Data").
-tag_db(0x9F26, b(8,8),    "Application Cryptogram").
-tag_db(0x9F27, b(1,1),    "Cryptogram Information Data").
-tag_db(0x9F36, b(2,2),    "Application Transaction Counter (ATC)").
-tag_db(0x9F6C, b(2,2),    "Card Transaction Qualifiers (CTQ)").
-tag_db(0x9F66, b(4,4),    "Terminal Transaction Qualifiers (TTQ) (Kernel 3)").
-tag_db(0x9F63, b(6,6),    "Positions of UN and ATC (PUNATC) (Kernel 2) (Track 1)").
-tag_db(0x9F64, b(1,1),    "Number of ATC digits (NATC) (Kernel 2) (Track 1)").
-tag_db(0x9F65, b(2,2),    "Positions of CVC3 (PCVC3) (Kernel 2) (Track 2)").
-tag_db(0x9F02, n(12),     "Amount, Authorised (numeric)").
-tag_db(0x9F03, n(12),     "Amount, Other (numeric)").
-tag_db(0x5F2A, n(3),      "Transaction Currency Code").
-tag_db(0x9F37, b(4,4),    "Unpredictable Number (UN)").
-tag_db(0x9F5B, b(0,252),  "Issuer Script Results (Kernel 3)").    % Max size is var.
-tag_db(0x9F5B, b(0,252),  "Data Storage DOL (DSDOL) (Kernel 2)"). %      ''
-tag_db(0x9F5B, false,     "Product Membership Number (Kernel 4)").
-tag_db(0x9F28, b(2,2),    "Contactless Application Capabilities Type").
-tag_db(0x9F35, n(2),      "Terminal Type").
-tag_db(0x5F20, ans(2,26), "Cardholder Name").
-tag_db(0x8C,   b(0,252),  "Card Risk Management DOL 1").
-tag_db(0x8D,   b(0,252),  "Card Risk Management DOL 2").
-tag_db(0x9F1A, n(3),      "Terminal Country Code").
-tag_db(0x95,   b(5,5),    "Terminal Verification Results (TVR)").
-tag_db(0x9A,   n(6),      "Transaction Date").
-tag_db(0x9C,   n(2),      "Transaction Type").
-tag_db(0x8A,   an(2),     "Authorisation Response Code").
-tag_db(0x9F08, b(2,2),    "Application Version").
-tag_db(0x9F07, b(2,2),    "Application Usage Control (AUC)").
-tag_db(0x9F42, n(3),      "Application Currency Code").
-tag_db(0x5F30, n(3),      "Service Code").
-tag_db(0x5F25, n(6),      "Application Effective Date").
-tag_db(0x5F24, n(6),      "Application Expiration Date").
-tag_db(0x5A,   cn(0,19),  "Application Primary Account Number (PAN)").
-tag_db(0x9F0D, b(5,5),    "Issuer Action Code (IAC) - Default").
-tag_db(0x9F0E, b(5,5),    "Issuer Action Code (IAC) - Denial").
-tag_db(0x9F0F, b(5,5),    "Issuer Action Code (IAC) - Online").
-tag_db(0x8E,   b(0,252),  "Cardholder Verification Method (CVM) List").
+%% tag_db(EmvTag, Spec, ApplicableKernel, Name) is fact.
+%
+tag_db(0x82,   b(1,6),    _, "File descriptor").
+tag_db(0x83,   b(2,2),    _, "File identifier").
+tag_db(0xA5,   t,         _, "FCI Proprietary Template").
+tag_db(0x77,   t,         _, "Response Message Template Format 2").
+tag_db(0xBF0C, t,         _, "FCI Issuer Discretionary Data").
+tag_db(0x61,   t,         _, "Application Template").
+tag_db(0x87,   b(1,1),    _, "Application Priority Indicator").
+tag_db(0x9F2A, b(2,2),    _, "Kernel Identifier").
+tag_db(0x4F,   b(5,16),   _, "Application Identifier (AID) – Card").
+tag_db(0x50,   b(1,16),   _, "Application Label").
+tag_db(0x87,   b(1,1),    _, "Application Priority Indicator").
+tag_db(0x84,   b(0,16),   _, "Dedicated File (DF) Name").
+tag_db(0x6F,   t,         _, "File Control Information (FCI)").
+tag_db(0x9F38, b(0,64),   _, "Processing Options DOL (PDOL)").
+tag_db(0x9F5A, b(1,16),   3, "Application Program Identifier").
+tag_db(0x9F5A, b(1),      4, "Membership Product Identifier").
+tag_db(0x57,   b(0,19),   _, "Track 2 Equivalent Data").
+tag_db(0x5F34, n(2),      _, "Application PAN Sequence Number").
+tag_db(0x9F10, b(0,32),   _, "Issuer Application Data").
+tag_db(0x9F26, b(8,8),    _, "Application Cryptogram").
+tag_db(0x9F27, b(1,1),    _, "Cryptogram Information Data").
+tag_db(0x9F36, b(2,2),    _, "Application Transaction Counter (ATC)").
+tag_db(0x9F6C, b(2,2),    _, "Card Transaction Qualifiers (CTQ)").
+tag_db(0x9F66, b(4,4),    3, "Terminal Transaction Qualifiers (TTQ)").
+tag_db(0x9F63, b(6,6),    2, "Positions of UN and ATC in Track 1 (PUNATC) ").
+tag_db(0x9F64, b(1,1),    2, "Number of ATC digits (NATC) in Track 1").
+tag_db(0x9F65, b(2,2),    2, "Positions of CVC3 (PCVC3) in Track 2").
+tag_db(0x9F02, n(12),     _, "Amount, Authorised (numeric)").
+tag_db(0x9F03, n(12),     _, "Amount, Other (numeric)").
+tag_db(0x5F2A, n(3),      _, "Transaction Currency Code").
+tag_db(0x9F37, b(4,4),    _, "Unpredictable Number (UN)").
+tag_db(0x9F5B, b(0,252),  3, "Issuer Script Results").    % Max size is var.
+tag_db(0x9F5B, b(0,252),  2, "Data Storage DOL (DSDOL)"). %      ''
+tag_db(0x9F5B, false,     4, "Product Membership Number").
+tag_db(0x9F28, b(2,2),    _, "Contactless Application Capabilities Type").
+tag_db(0x9F35, n(2),      _, "Terminal Type").
+tag_db(0x5F20, ans(2,26), _, "Cardholder Name").
+tag_db(0x8C,   b(0,252),  _, "Card Risk Management DOL 1").
+tag_db(0x8D,   b(0,252),  _, "Card Risk Management DOL 2").
+tag_db(0x9F1A, n(3),      _, "Terminal Country Code").
+tag_db(0x95,   b(5,5),    _, "Terminal Verification Results (TVR)").
+tag_db(0x9A,   n(6),      _, "Transaction Date").
+tag_db(0x9C,   n(2),      _, "Transaction Type").
+tag_db(0x8A,   an(2),     _, "Authorisation Response Code").
+tag_db(0x9F08, b(2,2),    _, "Application Version").
+tag_db(0x9F07, b(2,2),    _, "Application Usage Control (AUC)").
+tag_db(0x9F42, n(3),      _, "Application Currency Code").
+tag_db(0x5F30, n(3),      _, "Service Code").
+tag_db(0x5F25, n(6),      _, "Application Effective Date").
+tag_db(0x5F24, n(6),      _, "Application Expiration Date").
+tag_db(0x5A,   cn(0,19),  _, "Application Primary Account Number (PAN)").
+tag_db(0x9F0D, b(5,5),    _, "Issuer Action Code (IAC) - Default").
+tag_db(0x9F0E, b(5,5),    _, "Issuer Action Code (IAC) - Denial").
+tag_db(0x9F0F, b(5,5),    _, "Issuer Action Code (IAC) - Online").
+tag_db(0x8E,   b(0,252),  _, "Cardholder Verification Method (CVM) List").
 
 % Tests
 db_consistent :- duplicates, ambiguous_type, ef_hosts_files.
@@ -289,12 +292,14 @@ ef_hosts_files :- \+((ft(Ef, ef), pc(Ef, _))).
 
 dol([]) --> [].
 dol([H|T]) -->
-    {   tag_db(H, Type, _),
-        tag_property(H, length(1)),
+    {   tag_db_kernel(K),
+        tag_db(H, Type, K, _),
+        tag_property(H, _, length(1)),
         phrase(value(Type, _, N), _) }, [H,N], dol(T).
 dol([H|T]) -->
-    {   tag_db(H, Type, _),
-        tag_property(H, length(2)),
+    {   tag_db_kernel(K),
+        tag_db(H, Type, K, _),
+        tag_property(H, _, length(2)),
         number_bytes(H, [A,B]),
         phrase(value(Type, _, N), _) }, [A,B,N], dol(T).
 

@@ -49,6 +49,7 @@ fx(28674, fixed).
 fx(28674, linear).
 fx(28676, ber-tlv).
 
+tag_db_kernel(6).
 
 % Sampe APDU
 % 00A404000E325041592E5359532E444446303100

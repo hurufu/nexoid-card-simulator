@@ -23,3 +23,5 @@ cryptogram_version_number(0x06).
 derivation_key_indicator(0x01).
 cvr(not_requested, R, 0, 0, 0, 0) :- decisive_result(R, _).
 decisive_result(arqc, online_pin_required).
+
+tag_db_kernel(3).
