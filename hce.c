@@ -35,7 +35,7 @@ static int s_event_pipe[2];
 static int s_data_rd = STDIN_FILENO;
 static int s_data_wr = STDOUT_FILENO;
 
-// Logging that is formatted as in libnfc-nci
+// Thread-safe logging formatted as in libnfc-nci
 #define PR(Level, Fmt, ...) prlog(Level, Fmt "\n", ##__VA_ARGS__)
 static void prlog(const uint_fast8_t lvl, const char* const fmt, ...) {
     static const char s_map[] = {
@@ -49,14 +49,18 @@ static void prlog(const uint_fast8_t lvl, const char* const fmt, ...) {
         [LOG_DEBUG] = 'D'
     };
     struct timespec ts;
+    struct tm tm_info;
     clock_gettime(CLOCK_REALTIME, &ts);
+    localtime_r(&ts.tv_sec, &tm_info); // Thread-safe time conversion
     char tmp[24];
-    const int sz = strftime(tmp, sizeof tmp, "%Y:%m:%d-%H:%M:%S", localtime(&ts.tv_sec));
+    const int sz = strftime(tmp, sizeof tmp, "%Y:%m:%d-%H:%M:%S", &tm_info);
+    flockfile(stderr); // Prevent interleaved logs from concurrent callbacks
     fprintf(stderr, "%*s.%03lu %7s:  %c ", sz, tmp, ts.tv_nsec/1000000, "hce", s_map[lvl]);
     va_list ap;
     va_start(ap, fmt);
     vfprintf(stderr, fmt, ap);
     va_end(ap);
+    funlockfile(stderr);
 }
 
 static char mode_tostring(const unsigned char mode) {
@@ -81,8 +85,15 @@ static void on_data(unsigned char* const data, const unsigned int len) {
 }
 
 static void sig_handler(const int sig) {
-    assert(sig == SIGPIPE);
-    xwrite(s_event_pipe[1], "P", 1);
+    char sigbyte;
+    switch (sig) {
+        case SIGPIPE:
+            sigbyte = 'P';
+        default:
+            return;
+    }
+    if (write(s_event_pipe[1], &sigbyte, 1) != 1)
+        _exit(EXIT_FAILURE);
 }
 
 int main() {
@@ -130,6 +141,7 @@ int main() {
         timeout = (struct timeval){ .tv_sec = 1 };
         const int sr = select(MAX(s_data_rd, s_event_pipe[0]) + 1, &rd, NULL, NULL, &timeout);
         if (sr < 0) {
+            if (errno == EINTR) continue;
             PR(LOG_ERR, "select: %m");
             ret = EX_IOERR;
             break;
