@@ -26,7 +26,7 @@ response(Cmd, Dt, Qe) --> { response_for(Cmd, Dt, Qe, Response, Sw1, Sw2) }, out
 singlet(Lowest, A) --> rbyte(A), { A >= Lowest }.
 doublet(Lowest, N) --> rbyte(A), rbyte(B), { N is (A << 8) + B, N >= Lowest }.
 
-nbytes(L, N) --> foldl_(count(in_, N), L, 0, N).
+nbytes(L, N) --> foldl_(count_(in_, N), L, 0, N).
 in_(E) --> [+E].
 
 rbyte(N) --> [+N], { between(0, 255, N) }.
