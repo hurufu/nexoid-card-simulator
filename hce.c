@@ -103,7 +103,7 @@ static void on_deactivated(void) {
 
 static void on_data(unsigned char* const data, const unsigned int len) {
     xwrite(s_data_wr, data, len);
-    PRBIN(len, data, "< ");
+    PRBIN(len, data, "% 3u < ", len);
 }
 
 static void sig_handler(const int sig) {
@@ -199,7 +199,7 @@ int main() {
                 ret = EX_SOFTWARE;
                 break;
             }
-            PRBIN(l, buf, "> ");
+            PRBIN(l, buf, "% 3zd > ", l);
         }
     }
 end:
