@@ -35,9 +35,7 @@ static int s_event_pipe[2];
 static int s_data_rd = STDIN_FILENO;
 static int s_data_wr = STDOUT_FILENO;
 
-// Thread-safe logging formatted as in libnfc-nci
-#define PR(Level, Fmt, ...) prlog(Level, Fmt "\n", ##__VA_ARGS__)
-static void prlog(const uint_fast8_t lvl, const char* const fmt, ...) {
+static int prprefix(FILE* const s, const uint_fast8_t lvl) {
     static const char s_map[] = {
         [LOG_EMERG] = 'R',
         [LOG_ALERT] = 'A',
@@ -54,13 +52,36 @@ static void prlog(const uint_fast8_t lvl, const char* const fmt, ...) {
     localtime_r(&ts.tv_sec, &tm_info); // Thread-safe time conversion
     char tmp[24];
     const int sz = strftime(tmp, sizeof tmp, "%Y:%m:%d-%H:%M:%S", &tm_info);
-    flockfile(stderr); // Prevent interleaved logs from concurrent callbacks
-    fprintf(stderr, "%*s.%03lu %7s:  %c ", sz, tmp, ts.tv_nsec/1000000, "hce", s_map[lvl]);
+    return fprintf(s, "%*s.%03lu %7s:  %c ", sz, tmp, ts.tv_nsec/1000000, "hce", s_map[lvl]);
+}
+
+// Thread-safe logging formatted as in libnfc-nci
+#define PR(Level, Fmt, ...) prlog(stderr, Level, Fmt "\n", ##__VA_ARGS__)
+static void prlog(FILE* const s, const uint_fast8_t lvl, const char* const fmt, ...) {
+    flockfile(s); // Prevent interleaved logs from concurrent callbacks
+    prprefix(s, lvl);
     va_list ap;
     va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
+    vfprintf(s, fmt, ap);
     va_end(ap);
-    funlockfile(stderr);
+    funlockfile(s);
+}
+
+#define PRBIN(Length, Buf, Prefix, ...) prhexdump(stderr, Length, Buf, Prefix, ##__VA_ARGS__)
+static void prhexdump(FILE* const s, const size_t l, const unsigned char b[l], const char* const prefix, ...) {
+    flockfile(s);
+    prprefix(s, LOG_DEBUG);
+    va_list ap;
+    va_start(ap, prefix);
+    vfprintf(s, prefix, ap);
+    va_end(ap);
+    for (size_t i = 0; i < l; i++) {
+        fprintf(s, "%02x", b[i]);
+        if ((i + 1) % 8 == 0) fputc(' ', s);
+        if ((i + 1) % (8*4) == 0) fputc(' ', s);
+    }
+    fputc('\n', s);
+    funlockfile(s);
 }
 
 static char mode_tostring(const unsigned char mode) {
@@ -82,6 +103,7 @@ static void on_deactivated(void) {
 
 static void on_data(unsigned char* const data, const unsigned int len) {
     xwrite(s_data_wr, data, len);
+    PRBIN(len, data, "< ");
 }
 
 static void sig_handler(const int sig) {
@@ -92,7 +114,7 @@ static void sig_handler(const int sig) {
         default:
             return;
     }
-    if (write(s_event_pipe[1], &sigbyte, 1) != 1)
+    if (write(s_event_pipe[1], &sigbyte, 1) < 0)
         _exit(EX_IOERR);
 }
 
@@ -177,6 +199,7 @@ int main() {
                 ret = EX_SOFTWARE;
                 break;
             }
+            PRBIN(l, buf, "> ");
         }
     }
 end:
