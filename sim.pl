@@ -57,7 +57,8 @@ le_ok(Qe, Length) :- le_max(Qe, Max), Length =< Max.
 le_max(present(short,Ne), Max) :- Ne =:= 0 -> Max = 256; Max = Ne.
 le_max(present(extended,Ne), Max) :- Ne =:= 0 -> Max = 65535; Max = Ne.
 
-%% Effectful functions used for debugging %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Effectful functions used for debugging %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% {
 
 %% format_apdu_pair(@Stream, +Cmd, +Dt, +Qe, +Tv, +Sw1, +Sw2) is det.
 format_apdu_pair(Stream, Cmd, Dt, Qe, Tv, Sw1, Sw2) :-
@@ -105,6 +106,7 @@ format_list([], _, _).
 format_list([H|T], Stream, Format) :-
     format(Stream, Format, [H]),
     format_list(T, Stream, Format).
+%% }
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Describes list difference an it's prefix (regular list)
@@ -200,12 +202,8 @@ gpo_(Fid) -->
 optional_pp(Fid, Tag) --> { pp(Fid, Tag, Value) } -> [Tag-Value]; [].
 
 
-% Tests
-db_consistent :- duplicates, ambiguous_type, ef_hosts_files.
-duplicates :- forall(ft(F, _), findall(X, ft(F,X), [_])).
-ambiguous_type :- \+((ft(Fid, T1), ft(Fid, T2), T1 \= T2)).
-ef_hosts_files :- \+((ft(Ef, ef), pc(Ef, _))).
-%ef_has_dfname :- forall(fn(F, _), type(df, F)).
+%% EMV tag database %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% {
 
 tag_properties_defaults(Id, L, D) :- maplist(tag_property_default(Id), L, D).
 tag_properties(Id, L) :- maplist(tag_property(Id), L).
@@ -278,6 +276,16 @@ tag_db(0x9F0D, b(5,5),    "Issuer Action Code (IAC) - Default").
 tag_db(0x9F0E, b(5,5),    "Issuer Action Code (IAC) - Denial").
 tag_db(0x9F0F, b(5,5),    "Issuer Action Code (IAC) - Online").
 tag_db(0x8E,   b(0,252),  "Cardholder Verification Method (CVM) List").
+
+% Tests
+db_consistent :- duplicates, ambiguous_type, ef_hosts_files.
+duplicates :- forall(ft(F, _), findall(X, ft(F,X), [_])).
+ambiguous_type :- \+((ft(Fid, T1), ft(Fid, T2), T1 \= T2)).
+ef_hosts_files :- \+((ft(Ef, ef), pc(Ef, _))).
+%ef_has_dfname :- forall(fn(F, _), type(df, F)).
+
+%% }
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 dol([]) --> [].
 dol([H|T]) -->
