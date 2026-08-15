@@ -21,7 +21,7 @@ le(present(short,_), present(short,Ne)) --> singlet(0, Ne).
 le(present(extended,_), present(extended,Ne)) --> doublet(0, Ne).
 le(absent, present(extended,Ne)) --> [+0], doublet(0, Ne).
 
-response(Cmd, Dt, Qe) --> { response_for(Cmd, Dt, Qe, Response, Sw1, Sw2) }, output([Sw1,Sw2]), output(Response).
+response(Cmd, Dt, Qe) --> { response_for(Cmd, Dt, Qe, Response, Sw1, Sw2), format_capdu(user_error, '<', Cmd, Dt, Qe) }, output([Sw1,Sw2]), output(Response).
 
 singlet(Lowest, A) --> rbyte(A), { A >= Lowest }.
 doublet(Lowest, N) --> rbyte(A), rbyte(B), { N is (A << 8) + B, N >= Lowest }.
@@ -52,6 +52,19 @@ le_ok(Qe, Length) :- le_max(Qe, Max), Length =< Max.
 le_max(present(short,Ne), Max) :- Ne =:= 0 -> Max = 256; Max = Ne.
 le_max(present(extended,Ne), Max) :- Ne =:= 0 -> Max = 65535; Max = Ne.
 
+%% format_capdu(+Prefix, +Cmd, +Dt, +Qe) is det.
+format_capdu(Stream, Prefix, Cmd, Dt, Qe) :-
+    format(Stream, '~|~40+~a ~w ', [Prefix,Cmd]),
+    (
+        phrase(in_alphabet(ansp), Dt) ->
+            format(Stream, '~s', [Dt])
+        ;   format_list(Dt, Stream, '~|~`0t~16R~2+')
+    ),
+    format(Stream, ' ~w~n', [Qe]).
+
+format_list([], _, _).
+format_list([H|T], Stream, Format) :- format(Stream, Format, [H]), format_list(T, Stream, Format).
+
 % Describes list difference an it's prefix (regular list)
 open_list([], X-X).
 open_list([H|D], [H|T]-X) :- open_list(D, T-X).
@@ -72,6 +85,32 @@ value(ans(L,U), V, N) --> { between(L, U, N) }, length_(V, N).
 value(an(L,U), V, N) --> { between(L, U, N) }, length_(V, N).
 value(n(I), V, N) --> { N is ceiling(I / 2) }, length_(V, N).
 value(cn(L,U), V, N) --> { between(L, U, X), N is ceiling(X/2) }, length_(V, N).
+
+in_alphabet(Spec) --> { spec_alphabet_codes(Spec, L) }, in_alphabet_list(L).
+in_alphabet_list(_) --> [].
+in_alphabet_list(L) --> [C], { memberchk(C, L) }, in_alphabet_list(L).
+
+spec_alphabet_codes(Spec, AlphabetCodes) :-
+    spec_alphabet_chars(Spec, AlphabetChars),
+    maplist(char_code, AlphabetChars, AlphabetCodes).
+
+spec_alphabet_chars(Spec, AlphabetChars) :-
+    spec_alphabet_names(Spec, AlphabetNames),
+    maplist(alphabet, AlphabetNames, Y),
+    append(Y, AlphabetChars).
+
+
+spec_alphabet_names(ansp, [ascii(punct)|L]) :- spec_alphabet_names(ans, L).
+spec_alphabet_names(ans, [ascii(space)|L]) :- spec_alphabet_names(an, L).
+spec_alphabet_names(an, [N|A]) :- spec_alphabet_names(n, [N]), spec_alphabet_names(a, A).
+spec_alphabet_names(a, [ascii(digit),ascii(upper)]).
+spec_alphabet_names(n, [ascii(lower)]).
+
+alphabet(ascii(digit), ['0','1','2','3','4','5','6','7','8','9']).
+alphabet(ascii(upper), ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','Q','U','V','W','X','Y','Z']).
+alphabet(ascii(lower), ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','q','u','v','w','x','y','z']).
+alphabet(ascii(space), [' ']).
+alphabet(ascii(punct), ['.',',',';','!','?']).
 
 number_bytes(N, [A,B]) :-
     bits(16, [A0,A1,A2,A3,A4,A5,A6,A7,B0,B1,B2,B3,B4,B5,B6,B7], N),
