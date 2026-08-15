@@ -21,7 +21,11 @@ le(present(short,_), present(short,Ne)) --> singlet(0, Ne).
 le(present(extended,_), present(extended,Ne)) --> doublet(0, Ne).
 le(absent, present(extended,Ne)) --> [+0], doublet(0, Ne).
 
-response(Cmd, Dt, Qe) --> { response_for(Cmd, Dt, Qe, Response, Sw1, Sw2), format_capdu(user_error, '<', Cmd, Dt, Qe) }, output([Sw1,Sw2]), output(Response).
+response(Cmd, Dt, Qe) -->
+    {
+        response_for(Cmd, Dt, Qe, Tv, Response, Sw1, Sw2),
+        format_apdu_pair(user_error, Cmd, Dt, Qe, Tv, Sw1, Sw2)
+    }, output([Sw1,Sw2]), output(Response).
 
 singlet(Lowest, A) --> rbyte(A), { A >= Lowest }.
 doublet(Lowest, N) --> rbyte(A), rbyte(B), { N is (A << 8) + B, N >= Lowest }.
@@ -35,16 +39,17 @@ put_bytes(Stream) --> [] ; [-Byte], { put_byte(Stream, Byte) }, put_bytes(Stream
 get_bytes(Stream, B, A) :-
     get_byte(Stream, Byte), Byte >= 0, A = [+Byte|X], (X = B; get_bytes(Stream, B, X)).
 
-response_for(select(aid_prefix,Occurrence,fci), Dt, Qe, Rs, 0x90, 0x00) :-
+response_for(select(aid_prefix,Occurrence,fci), Dt, Qe, Fci, Rs, 0x90, 0x00) :-
     open_list(Dt, L-_),
     select(by_dfname, Occurrence, Fid, L),
     fci(Fid, Fci),
     phrase(ber(Fci,Length), Tmp),
     maplist((is), Rs, Tmp),
     le_ok(Qe, Length).
-response_for(get_processing_options, _, Qe, Rs, 0x90, 0x00) :-
+response_for(get_processing_options, _, Qe, Tv, Rs, 0x90, 0x00) :-
+    Tv = [0x77-GPO],
     phrase(gpo_(22090), GPO),
-    phrase(ber([0x77-GPO], Length), Tmp),
+    phrase(ber(Tv, Length), Tmp),
     maplist((is), Rs, Tmp),
     le_ok(Qe, Length).
 
@@ -52,18 +57,55 @@ le_ok(Qe, Length) :- le_max(Qe, Max), Length =< Max.
 le_max(present(short,Ne), Max) :- Ne =:= 0 -> Max = 256; Max = Ne.
 le_max(present(extended,Ne), Max) :- Ne =:= 0 -> Max = 65535; Max = Ne.
 
-%% format_capdu(+Prefix, +Cmd, +Dt, +Qe) is det.
-format_capdu(Stream, Prefix, Cmd, Dt, Qe) :-
-    format(Stream, '~|~40+~a ~w ', [Prefix,Cmd]),
-    (
-        phrase(in_alphabet(ansp), Dt) ->
-            format(Stream, '~s', [Dt])
-        ;   format_list(Dt, Stream, '~|~`0t~16R~2+')
-    ),
+%% Effectful functions used for debugging %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% format_apdu_pair(@Stream, +Cmd, +Dt, +Qe, +Tv, +Sw1, +Sw2) is det.
+format_apdu_pair(Stream, Cmd, Dt, Qe, Tv, Sw1, Sw2) :-
+    format_capdu(Stream, Cmd, Dt, Qe),
+    format_rapdu(Stream, Tv, Sw1, Sw2).
+
+%% format_capdu(@Stream, +Cmd, +Dt, +Qe) is det.
+format_capdu(Stream, Cmd, Dt, Qe) :-
+    format(Stream, '~|~40+< ~w ', [Cmd]),
+    format_ascii_or_hex_list(Stream, Dt),
     format(Stream, ' ~w~n', [Qe]).
 
+%% format_capdu(@Stream, +Tv, +Sw1, +Sw2) is det.
+format_rapdu(Stream, Tv, Sw1, Sw2) :-
+    format(Stream, '~|~40+> [~|~`0t~16R~2+~|~`0t~16R~2+~|]~n', [Sw1,Sw2]),
+    format_explain(Tv, ['-'], Stream),
+    format(Stream, '~n', []).
+
+format_explain([], Prefix, Stream) :- format(Stream, '~s', [Prefix]).
+format_explain([T-V|Rest], Prefix, Stream) :-
+    tag_properties_defaults(T, [name(N),spec(S)], [name("Unknown"),spec(false)]),
+    format(Stream, '~s 0x~16R ~s (~w): ', [Prefix,T,N,S]),
+    format_value(S, V, Prefix, Stream),
+    format(Stream, '~n', []),
+    format_explain(Rest, Prefix, Stream).
+
+format_value(t, Value, Prefix, Stream) :-
+    format(Stream, '~n', []),
+    format_explain(Value, ['+'|Prefix], Stream).
+format_value(b(_,_), Value, _, Stream) :- format_ascii_or_hex_list(Stream, Value).
+format_value(an(_,_), Value, _, Stream) :- format_printable_list(Stream, Value).
+format_value(ans(_,_), Value, _, Stream) :- format_printable_list(Stream, Value).
+format_value(n(_), Value, _, Stream) :- format_printable_list(Stream, Value).
+format_value(cn(_,_), Value, _, Stream) :- format_hex_list(Stream, Value).
+
+format_hex_list(Stream, List) :- format_list(List, Stream, '~|~`0t~16R~2+').
+format_printable_list(Stream, List) :- format(Stream, '"~s"', [List]).
+
+format_ascii_or_hex_list(Stream, List) :-
+    phrase(in_alphabet(ansp), List) ->
+        format_printable_list(Stream, List)
+    ;   format_hex_list(Stream, List).
+
 format_list([], _, _).
-format_list([H|T], Stream, Format) :- format(Stream, Format, [H]), format_list(T, Stream, Format).
+format_list([H|T], Stream, Format) :-
+    format(Stream, Format, [H]),
+    format_list(T, Stream, Format).
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Describes list difference an it's prefix (regular list)
 open_list([], X-X).
@@ -107,8 +149,8 @@ spec_alphabet_names(a, [ascii(digit),ascii(upper)]).
 spec_alphabet_names(n, [ascii(lower)]).
 
 alphabet(ascii(digit), ['0','1','2','3','4','5','6','7','8','9']).
-alphabet(ascii(upper), ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','Q','U','V','W','X','Y','Z']).
-alphabet(ascii(lower), ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','q','u','v','w','x','y','z']).
+alphabet(ascii(upper), ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z']).
+alphabet(ascii(lower), ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z']).
 alphabet(ascii(space), [' ']).
 alphabet(ascii(punct), ['.',',',';','!','?']).
 
@@ -165,7 +207,16 @@ ambiguous_type :- \+((ft(Fid, T1), ft(Fid, T2), T1 \= T2)).
 ef_hosts_files :- \+((ft(Ef, ef), pc(Ef, _))).
 %ef_has_dfname :- forall(fn(F, _), type(df, F)).
 
+tag_properties_defaults(Id, L, D) :- maplist(tag_property_default(Id), L, D).
 tag_properties(Id, L) :- maplist(tag_property(Id), L).
+
+tag_property_default(Id, Property, Default) :-
+    ground(Default),
+    (
+        \+ tag_property(Id, Property) ->
+            Property = Default
+        ;   tag_property(Id, Property)
+    ).
 
 tag_property(Id, value(Id)) :- tag_db(Id, _, _).
 tag_property(Id, length(L)) :- tag_db(Id, _, _), L is ceiling(log(Id + 1) / log(2) / 8).
