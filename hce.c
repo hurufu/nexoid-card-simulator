@@ -93,7 +93,7 @@ static void sig_handler(const int sig) {
             return;
     }
     if (write(s_event_pipe[1], &sigbyte, 1) != 1)
-        _exit(EXIT_FAILURE);
+        _exit(EX_IOERR);
 }
 
 int main() {
