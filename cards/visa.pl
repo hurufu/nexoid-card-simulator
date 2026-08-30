@@ -18,6 +18,7 @@ pp(22090, 0x9F27, [N]) :- cryptogram_information_data(Bits, R), decisive_result(
 pp(22090, 0x9F36, [A,B]) :- number_bytes(2, [A,B]).
 pp(22090, 0x9F6C, B) :- decisive_result(_, R), ctq([R], B).
 pp(22090, 0x87,   [0x01]).
+pp(28677, Tag, X) :- available_in_ppse(Fid, Tag), pp(Fid, Tag, X).
 
 cryptogram_version_number(0x06).
 derivation_key_indicator(0x01).
@@ -25,3 +26,8 @@ cvr(not_requested, R, 0, 0, 0, 0) :- decisive_result(R, _).
 decisive_result(arqc, online_pin_required).
 
 tag_db_kernel(3).
+
+available_in_ppse(22090, 0x4F).
+available_in_ppse(22090, 0x50).
+available_in_ppse(22090, 0x87).
+available_in_ppse(22090, 0x9F5A).

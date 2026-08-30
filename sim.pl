@@ -1,3 +1,5 @@
+:- use_module(library(dif)).
+
 main :- phrase(exchange, []) -> main; true.
 
 exchange --> get_bytes(rd), command_response_pair, put_bytes(wr).
@@ -21,11 +23,7 @@ le(present(short,_), present(short,Ne)) --> singlet(0, Ne).
 le(present(extended,_), present(extended,Ne)) --> doublet(0, Ne).
 le(absent, present(extended,Ne)) --> [+0], doublet(0, Ne).
 
-response(Cmd, Dt, Qe) -->
-    {
-        response_for(Cmd, Dt, Qe, Tv, Response, Sw1, Sw2),
-        format_apdu_pair(user_error, Cmd, Dt, Qe, Tv, Sw1, Sw2)
-    }, output([Sw1,Sw2]), output(Response).
+response(Cmd, Dt, Qe) --> { response_for(Cmd, Dt, Qe, [Sw1,Sw2|Response]) }, output([Sw1,Sw2]), output(Response).
 
 singlet(Lowest, A) --> rbyte(A), { A >= Lowest }.
 doublet(Lowest, N) --> rbyte(A), rbyte(B), { N is (A << 8) + B, N >= Lowest }.
@@ -39,19 +37,21 @@ put_bytes(Stream) --> [] ; [-Byte], { put_byte(Stream, Byte) }, put_bytes(Stream
 get_bytes(Stream, B, A) :-
     get_byte(Stream, Byte), Byte >= 0, A = [+Byte|X], (X = B; get_bytes(Stream, B, X)).
 
-response_for(select(aid_prefix,Occurrence,fci), Dt, Qe, Fci, Rs, 0x90, 0x00) :-
-    open_list(Dt, L-_),
+response_for(Cmd, Dt, Qe, [Sw1,Sw2|Response]) :-
+    tsv_response_for(Cmd, Dt, Tsv, Sw1, Sw2),
+    phrase(ber(Tsv,Le), Tmp),
+    maplist((is), Response, Tmp),
+    le_ok(Qe, Le).
+
+tsv_response_for(select(aid_prefix,Occurrence,fci), Dt, Fci, 0x90, 0x00) :-
+    append(Dt, _, L),
     select(by_dfname, Occurrence, Fid, L),
-    fci(Fid, Fci),
-    phrase(ber(Fci,Length), Tmp),
-    maplist((is), Rs, Tmp),
-    le_ok(Qe, Length).
-response_for(get_processing_options, _, Qe, Tv, Rs, 0x90, 0x00) :-
-    Tv = [0x77-GPO],
-    phrase(gpo_(22090), GPO),
-    phrase(ber(Tv, Length), Tmp),
-    maplist((is), Rs, Tmp),
-    le_ok(Qe, Length).
+    applicable_response(Fid, 0x6F, Fci),
+    !.
+tsv_response_for(get_processing_options, _, Gpo, 0x90, 0x00) :-
+    applicable_response(22090, 0x77, Gpo),
+    !.
+tsv_response_for(_, _, _, 0x65, 0x00). % Error no information given
 
 le_ok(Qe, Length) :- le_max(Qe, Max), Length =< Max.
 le_max(present(short,Ne), Max) :- Ne =:= 0 -> Max = 256; Max = Ne.
@@ -60,10 +60,10 @@ le_max(present(extended,Ne), Max) :- Ne =:= 0 -> Max = 65535; Max = Ne.
 %% Effectful functions used for debugging %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% {
 
-%% format_apdu_pair(@Stream, +Cmd, +Dt, +Qe, +Tv, +Sw1, +Sw2) is det.
+%% format_apdu_pair(@Stream, +Cmd, +Dt, +Qe, +Tsv, +Sw1, +Sw2) is det.
 format_apdu_pair(Stream, Cmd, Dt, Qe, Tv, Sw1, Sw2) :-
     format_capdu(Stream, Cmd, Dt, Qe),
-    format_rapdu(Stream, Tv, Sw1, Sw2).
+    format_rapdu(Stream, Tsv, Sw1, Sw2).
 
 %% format_capdu(@Stream, +Cmd, +Dt, +Qe) is det.
 format_capdu(Stream, Cmd, Dt, Qe) :-
@@ -71,14 +71,14 @@ format_capdu(Stream, Cmd, Dt, Qe) :-
     format_ascii_or_hex_list(Stream, Dt),
     format(Stream, ' ~w~n', [Qe]).
 
-%% format_capdu(@Stream, +Tv, +Sw1, +Sw2) is det.
-format_rapdu(Stream, Tv, Sw1, Sw2) :-
+%% format_capdu(@Stream, +Tsv, +Sw1, +Sw2) is det.
+format_rapdu(Stream, Tsv, Sw1, Sw2) :-
     format(Stream, '~|~40+> [~|~`0t~16R~2+~|~`0t~16R~2+~|]~n', [Sw1,Sw2]),
-    format_explain(Tv, ['-'], Stream),
+    format_explain(Tsv, ['-'], Stream),
     format(Stream, '~n', []).
 
 format_explain([], Prefix, Stream) :- format(Stream, '~s', [Prefix]).
-format_explain([T-V|Rest], Prefix, Stream) :-
+format_explain([tsv(T,S,V)|Rest], Prefix, Stream) :-
     tag_db_kernel(Kernel),
     tag_properties_defaults(T, Kernel, [name(N),spec(S)], [name("Unknown"),spec(false)]),
     format(Stream, '~s 0x~16R ~s (~w): ', [Prefix,T,N,S]),
@@ -99,7 +99,7 @@ format_hex_list(Stream, List) :- format_list(List, Stream, '~|~`0t~16R~2+').
 format_printable_list(Stream, List) :- format(Stream, '"~s"', [List]).
 
 format_ascii_or_hex_list(Stream, List) :-
-    phrase(in_alphabet(ansp), List) ->
+    phrase(in_alphabet(ans), List) ->
         format_printable_list(Stream, List)
     ;   format_hex_list(Stream, List).
 
@@ -110,26 +110,23 @@ format_list([H|T], Stream, Format) :-
 %% }
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% Describes list difference an it's prefix (regular list)
-open_list([], X-X).
-open_list([H|D], [H|T]-X) :- open_list(D, T-X).
-
 output([]) --> [].
 output([H|T]), [-H] --> output(T).
 
+ber(tsv(T,S,V), TL+LL+L) --> tag(T, TL), len(L, LL), value(S, V, L).
+tag(T, L) --> { tag_bytes(T, B, L) }, B.
+len(L, 1) --> [L].
+value(element(_,C), V, N) --> { value_between(C, N) }, length_(V, N).
+value(template, [], 0) --> [].
+value(template, [H|T], L1 + L2) --> ber(H, L1), value(template, T, L2).
 
-ber([], 0) --> [].
-ber([Tlv|Rest], L0+L1) --> tlv(Tlv, L0), ber(Rest, L1).
-tlv(T-V, L0+L1) --> tag(T, spec(S), L0), len(L1, VL), value(S, V, VL).
-tag(T, spec(S), 1) --> { tag_properties(T, _, [length(1),spec(S)]) }, [T].
-tag(T, spec(S), 2) --> { tag_properties(T, _, [length(2),spec(S)]), number_bytes(T,[B1,B2]) }, [B1,B2].
-len(VL+1, VL) --> [VL].
-value(t, V, L) --> ber(V, L).
-value(b(L,U), V, N) --> { between(L, U, N) }, length_(V, N).
-value(ans(L,U), V, N) --> { between(L, U, N) }, length_(V, N).
-value(an(L,U), V, N) --> { between(L, U, N) }, length_(V, N).
-value(n(I), V, N) --> { N is ceiling(I / 2) }, length_(V, N).
-value(cn(L,U), V, N) --> { between(L, U, X), N is ceiling(X/2) }, length_(V, N).
+tag_bytes(T, B, L) :-
+    L is ceiling(log(T + 1) / log(2) / 8),
+    length(B, L),
+    number_bytes(T, B).
+
+value_between(constraint(byte,L,U), N) :- between(L, U, N).
+value_between(constraint(bcd,L,U), N) :- between(L, U, X), N is ceiling(X/2).
 
 in_alphabet(Spec) --> { spec_alphabet_codes(Spec, L) }, in_alphabet_list(L).
 in_alphabet_list(_) --> [].
@@ -145,18 +142,20 @@ spec_alphabet_chars(Spec, AlphabetChars) :-
     append(Y, AlphabetChars).
 
 
-spec_alphabet_names(ansp, [ascii(punct)|L]) :- spec_alphabet_names(ans, L).
-spec_alphabet_names(ans, [ascii(space)|L]) :- spec_alphabet_names(an, L).
-spec_alphabet_names(an, [N|A]) :- spec_alphabet_names(n, [N]), spec_alphabet_names(a, A).
-spec_alphabet_names(a, [ascii(digit),ascii(upper)]).
-spec_alphabet_names(n, [ascii(lower)]).
+spec_alphabet_names(ans, [ascii(space),ascii(punct)|L]) :- spec_alphabet_names(an, L).
+spec_alphabet_names(an, [ascii(digit)|A]) :- spec_alphabet_names(a, A).
+spec_alphabet_names(a, [ascii(lower),ascii(upper)]).
 
 alphabet(ascii(digit), ['0','1','2','3','4','5','6','7','8','9']).
 alphabet(ascii(upper), ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z']).
 alphabet(ascii(lower), ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z']).
 alphabet(ascii(space), [' ']).
-alphabet(ascii(punct), ['.',',',';','!','?']).
+alphabet(ascii(punct), [!,#,$,&,'\'','(',')',*,+,-,'.','/',':',';','<','=','>','?',@,'[',\,']','^','_','`','{','|','}','~','%','"']).%'
 
+
+number_bytes(N, [A]) :-
+    bits(8, [A0,A1,A2,A3,A4,A5,A6,A7], N),
+    maplist(bits(8), [[A0,A1,A2,A3,A4,A5,A6,A7]],[A]).
 number_bytes(N, [A,B]) :-
     bits(16, [A0,A1,A2,A3,A4,A5,A6,A7,B0,B1,B2,B3,B4,B5,B6,B7], N),
     maplist(bits(8), [[A0,A1,A2,A3,A4,A5,A6,A7],[B0,B1,B2,B3,B4,B5,B6,B7]],[A,B]).
@@ -169,39 +168,104 @@ abs(Fid, Path) :- phrase(absolute_path(Fid), Path).
 absolute_path(16128) --> [16128].
 absolute_path(C) --> { nesting(P,C) }, absolute_path(P), [C].
 dfname(Fid, A) :- fn(Fid, A).
-property(Fid, 0x50, A) :- pp(Fid, 0x50, A).
-property(Fid, 0x4F, H) :- pp(Fid, 0x4F, H).
+fid_tag_property(F, 0x84, P) :- fn(F, P).
+fid_tag_property(F, T, P) :- pp(F, T, P).
 
 % Commands (ISO 7816-4 5.3.1.1)
 select(by_dfname, first, Fid, DfName) :- once(dfname(Fid, DfName)).
 select(by_fid, first, Fid, Fid) :- once(ft(Fid, _)).
 select(by_path, first, Fid, Path) :- once(abs(Fid, Path)).
 
-% FCI
-fci(Fid, D) :-
-    D = [0x6F-[
-            0x84-DfName,
-            0xA5-[
-                0xBF0C-X61|A5_Options]]],
-    dfname(Fid, DfName),
-    phrase(xA5_(Fid), A5_Options),
-    findall(C, nesting(Fid,C), Children),
-    maplist(x61, [Fid|Children], X61).
+%% tru(A, B).
+%
+% Special unification of tag-spec-value terms. It ignores leaf order with the
+% same prefix. It has a special provisions for open lists, so it can be
+% used to merge terms if they are open.
+tru(tsv(A,element(B,C),V), tsv(A,element(B,C),V)).
+tru(tsv(A,template,VL), tsv(A,template,VR)) :- trul(VL, VR).
 
-x61(Fid, 0x61-V) :- phrase(x61_(Fid), V).
+%% trul(A, B).
+%
+% Special unification of a (possibly open) list of tag-spec-value terms.
+trul(L, R) :- var(L), var(R) -> true; L = R, L = [].
+trul([HL|TL], [HR|TR]) :- tru(HL, HR), trul(TL, TR).
+trul([HL|TL], [HR|TR]) :- \+ tru(HL, HR), trux(TR, HL), trux(TL, HR).
 
-x61_(Fid) -->
-    optional_pp(Fid, 0x4F), optional_pp(Fid, 0x50), optional_pp(Fid, 0x87),
-    optional_pp(Fid, 0x9F2A), optional_pp(Fid, 0x9F5A), optional_pp(Fid, 0x9F28).
-xA5_(Fid) --> optional_pp(Fid, 0x50), optional_pp(Fid, 0x9F38).
+%% trux(List, Element).
+%
+% Element membership using special unification within open List of t-s-v terms.
+trux([H|_], X) :- tru(H, X).
+trux([H|T], X) :- \+ tru(H, X), trux(T, X).
 
-gpo_(Fid) -->
-    optional_pp(Fid, 0x57), optional_pp(Fid, 0x82), optional_pp(Fid, 0x5F34),
-    optional_pp(Fid, 0x9F10), optional_pp(Fid, 0x9F26), optional_pp(Fid, 0x9F27),
-    optional_pp(Fid, 0x9F36), optional_pp(Fid, 0x9F6C).
 
-optional_pp(Fid, Tag) --> { pp(Fid, Tag, Value) } -> [Tag-Value]; [].
+test_tru :- findall(N, test_tru(N), P), maplist(writeln, P).
 
+test_tru(test_reflexivity(N)) :-
+    nth1(N, [
+        _,
+        tsv(111,template,[]),
+        tsv(111,element(_,_),[])
+    ], X),
+    (tru(X, X) -> true).
+test_tru(test_symmetry(N)) :-
+    nth1(N, [
+        [
+            tsv(0,template,[]),
+            tsv(0,template,[])
+        ]
+    ], [L,R]),
+    (tru(L, R) -> tru(R, L)).
+test_tru(test_transitivity(N)) :-
+    nth1(N, [
+        [
+            tsv(0,template,[]),
+            tsv(0,template,[]),
+            tsv(0,template,[])
+        ]
+    ], [A,B,C]),
+    (tru(A, B), tru(B, C) -> tru(A, C)).
+test_tru( 4) :- E = tsv(33,element(_,_),[]), tru(X, E), X == E.
+test_tru(-4) :- E = tsv(33,element(_,_),[]), tru(E, X), X == E.
+test_tru( 5) :- \+ tru(tsv(1,element(_,_),_), tsv(2,_,_)).
+test_tru(-5) :- \+ tru(tsv(2,_,_), tsv(1,element(_,_),_)).
+test_tru( 6) :-
+    A = tsv(1,template,_),
+    B = tsv(1,template,[tsv(33,element(_,_),_)]),
+    tru(A, B),
+    A == B.
+test_tru( 7) :-
+    L = tsv(1,template,[tsv(34,element(BL,CL),VL)|RL]),
+    R = tsv(1,template,[tsv(33,element(BR,CR),VR)|RR]),
+    tru(L, R),
+    RL = [tsv(33,element(BR,CR),VR)|RRL],
+    RR = [tsv(34,element(BL,CL),VL)|RRR],
+    var(RRL),
+    var(RRR),
+    RRL \== RRR.
+test_tru( 8) :-
+    EL = tsv(99,element(_,_),_),
+    ER = tsv(98,element(_,_),_),
+    L = tsv(1,template,[tsv(2,template,[EL|_R1L])|_R2L]),
+    R = tsv(1,template,[tsv(2,template,[ER|_R1R])|_R2R]),
+    once(tru(L, R)).
+
+applicable_response(Fid, Root, X) :-
+    all_applicable_nested_non_templates(Fid, Root, Chains),
+    maplist(trul([X]), Chains).
+
+all_applicable_nested_non_templates(Fid, Root, Chains) :-
+    tag_db_kernel(K),
+    findall(C, applicable_nested_non_templates(K,Fid,Root,_,C), Chains).
+
+applicable_nested_non_templates(Kernel, Fid, P, C, [tsv(P,template,[tsv(C,element(X,Y),V)|_])|_]) :-
+    nesting_applicability(P, C),
+    tag_spec_db(C, Kernel, element(X,Y), _),
+    tag_spec_db(P, Kernel, template, _),
+    fid_tag_property(Fid, C, V).
+applicable_nested_non_templates(Kernel, Fid, P, C, [tsv(P,template,Y)|_]) :-
+    tag_spec_db(P, Kernel, template, _),
+    nesting_applicability(P, X),
+    applicable_nested_non_templates(Kernel, Fid, X, C, Y).
 
 %% EMV tag database %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% {
@@ -222,70 +286,154 @@ tag_property(Id, Kernel, length(L)) :- tag_db(Id, _, Kernel, _), L is ceiling(lo
 tag_property(Id, Kernel, name(N)) :- tag_db(Id, _, Kernel, N).
 tag_property(Id, Kernel, spec(S)) :- tag_db(Id, S, Kernel, _).
 
+%% fmt(FormatSpecification)// is multi.
+%
+% Data element specification format.
+fmt(false) --> fmt_false.
+fmt(template) --> fmt_template.
+fmt(element(F,constraint(C,L,U))) --> fmt_format(F), { fmt_constraint(F, C), fmt_max_unspec(M, Y) }, fmt_lower_upper(M, Y, L, U).
+fmt_template --> [t].
+fmt_false --> [-].
+fmt_format(b) --> [b].
+fmt_format(n) --> [n].
+fmt_format(cn) --> [c,n].
+fmt_format(a) --> [a].
+fmt_format(an) --> [a,n].
+fmt_format(ans) --> [a,n,s].
+fmt_format(var) --> [v,a,r].
+fmt_range --> [.,.].
+fmt_any --> [.,.,.].
+fmt_unspec --> [v,a,r].
+fmt_spc --> [' '].
+fmt_lower_upper(_, Y, 0, Y) --> fmt_any, fmt_unspec.
+fmt_lower_upper(M, _, 0, U) --> fmt_any, between__(1, M, U).
+fmt_lower_upper(M, Y, L, Y) --> { between(1, M, L) }, fmt_spc, fmt_unspec.
+fmt_lower_upper(M, _, L, L) --> between__(1, M, L).
+fmt_lower_upper(M, Y, L, Y) --> between__(1, M, L), fmt_range, fmt_unspec.
+fmt_lower_upper(M, _, L, U) --> between__(1, M, L), fmt_range, between__(1, M, U), { L < U }.
+fmt_constraint(cn,  bcd ).
+fmt_constraint(n,   bcd ).
+fmt_constraint(b,   byte).
+fmt_constraint(a,   byte).
+fmt_constraint(an,  byte).
+fmt_constraint(ans, byte).
+fmt_max_unspec(252, 253).
+%fmt_max_unspec(252, 16).
+%fmt_max_unspec(252, _).
+
+tag_spec_db(T, K, S, N) :-
+    tag_db(T, K, Atom, N),
+    atom_chars(Atom, Codes),
+    phrase(fmt(S), Codes).
+
 %% tag_db(EmvTag, Spec, ApplicableKernel, Name) is fact.
 %
-tag_db(0x82,   b(1,6),    _, "File descriptor").
-tag_db(0x83,   b(2,2),    _, "File identifier").
-tag_db(0xA5,   t,         _, "FCI Proprietary Template").
-tag_db(0x77,   t,         _, "Response Message Template Format 2").
-tag_db(0xBF0C, t,         _, "FCI Issuer Discretionary Data").
-tag_db(0x61,   t,         _, "Application Template").
-tag_db(0x87,   b(1,1),    _, "Application Priority Indicator").
-tag_db(0x9F2A, b(2,2),    _, "Kernel Identifier").
-tag_db(0x4F,   b(5,16),   _, "Application Identifier (AID) – Card").
-tag_db(0x50,   b(1,16),   _, "Application Label").
-tag_db(0x87,   b(1,1),    _, "Application Priority Indicator").
-tag_db(0x84,   b(0,16),   _, "Dedicated File (DF) Name").
-tag_db(0x6F,   t,         _, "File Control Information (FCI)").
-tag_db(0x9F38, b(0,64),   _, "Processing Options DOL (PDOL)").
-tag_db(0x9F5A, b(1,16),   3, "Application Program Identifier").
-tag_db(0x9F5A, b(1),      4, "Membership Product Identifier").
-tag_db(0x57,   b(0,19),   _, "Track 2 Equivalent Data").
-tag_db(0x5F34, n(2),      _, "Application PAN Sequence Number").
-tag_db(0x9F10, b(0,32),   _, "Issuer Application Data").
-tag_db(0x9F26, b(8,8),    _, "Application Cryptogram").
-tag_db(0x9F27, b(1,1),    _, "Cryptogram Information Data").
-tag_db(0x9F36, b(2,2),    _, "Application Transaction Counter (ATC)").
-tag_db(0x9F6C, b(2,2),    _, "Card Transaction Qualifiers (CTQ)").
-tag_db(0x9F66, b(4,4),    3, "Terminal Transaction Qualifiers (TTQ)").
-tag_db(0x9F63, b(6,6),    2, "Positions of UN and ATC in Track 1 (PUNATC) ").
-tag_db(0x9F64, b(1,1),    2, "Number of ATC digits (NATC) in Track 1").
-tag_db(0x9F65, b(2,2),    2, "Positions of CVC3 (PCVC3) in Track 2").
-tag_db(0x9F02, n(12),     _, "Amount, Authorised (numeric)").
-tag_db(0x9F03, n(12),     _, "Amount, Other (numeric)").
-tag_db(0x5F2A, n(3),      _, "Transaction Currency Code").
-tag_db(0x9F37, b(4,4),    _, "Unpredictable Number (UN)").
-tag_db(0x9F5B, b(0,252),  3, "Issuer Script Results").    % Max size is var.
-tag_db(0x9F5B, b(0,252),  2, "Data Storage DOL (DSDOL)"). %      ''
-tag_db(0x9F5B, false,     4, "Product Membership Number").
-tag_db(0x9F28, b(2,2),    _, "Contactless Application Capabilities Type").
-tag_db(0x9F35, n(2),      _, "Terminal Type").
-tag_db(0x5F20, ans(2,26), _, "Cardholder Name").
-tag_db(0x8C,   b(0,252),  _, "Card Risk Management DOL 1").
-tag_db(0x8D,   b(0,252),  _, "Card Risk Management DOL 2").
-tag_db(0x9F1A, n(3),      _, "Terminal Country Code").
-tag_db(0x95,   b(5,5),    _, "Terminal Verification Results (TVR)").
-tag_db(0x9A,   n(6),      _, "Transaction Date").
-tag_db(0x9C,   n(2),      _, "Transaction Type").
-tag_db(0x8A,   an(2),     _, "Authorisation Response Code").
-tag_db(0x9F08, b(2,2),    _, "Application Version").
-tag_db(0x9F07, b(2,2),    _, "Application Usage Control (AUC)").
-tag_db(0x9F42, n(3),      _, "Application Currency Code").
-tag_db(0x5F30, n(3),      _, "Service Code").
-tag_db(0x5F25, n(6),      _, "Application Effective Date").
-tag_db(0x5F24, n(6),      _, "Application Expiration Date").
-tag_db(0x5A,   cn(0,19),  _, "Application Primary Account Number (PAN)").
-tag_db(0x9F0D, b(5,5),    _, "Issuer Action Code (IAC) - Default").
-tag_db(0x9F0E, b(5,5),    _, "Issuer Action Code (IAC) - Denial").
-tag_db(0x9F0F, b(5,5),    _, "Issuer Action Code (IAC) - Online").
-tag_db(0x8E,   b(0,252),  _, "Cardholder Verification Method (CVM) List").
+tag_db(0x4F,   _, 'b5..16', "Application Identifier (AID) – Card").
+tag_db(0x50,   _, 'b1..16', "Application Label").
+tag_db(0x57,   _, 'b...19', "Track 2 Equivalent Data").
+tag_db(0x5A,   _, 'cn...19', "Application Primary Account Number (PAN)").
+tag_db(0x5F20, _, 'ans2..26', "Cardholder Name").
+tag_db(0x5F24, _, 'n6', "Application Expiration Date").
+tag_db(0x5F25, _, 'n6', "Application Effective Date").
+tag_db(0x5F2A, _, 'n3', "Transaction Currency Code").
+tag_db(0x5F30, _, 'n3..4', "Service Code").
+tag_db(0x5F34, _, 'n2', "Application PAN Sequence Number").
+tag_db(0x61,   _, 't', "Application Template").
+tag_db(0x6F,   _, 't', "File Control Information (FCI)").
+tag_db(0x77,   _, 't', "Response Message Template Format 2").
+tag_db(0x82,   _, 'b1..6', "File descriptor").
+tag_db(0x83,   _, 'b2', "File identifier").
+tag_db(0x84,   _, 'b...16', "Dedicated File (DF) Name").
+tag_db(0x87,   _, 'b1', "Application Priority Indicator").
+tag_db(0x87,   _, 'b1', "Application Priority Indicator").
+tag_db(0x8A,   _, 'an2', "Authorisation Response Code").
+tag_db(0x8C,   _, 'b...252', "Card Risk Management DOL 1").
+tag_db(0x8D,   _, 'b...252', "Card Risk Management DOL 2").
+tag_db(0x8E,   _, 'b...252', "Cardholder Verification Method (CVM) List").
+tag_db(0x95,   _, 'b5', "Terminal Verification Results (TVR)").
+tag_db(0x9A,   _, 'n6', "Transaction Date").
+tag_db(0x9C,   _, 'n2', "Transaction Type").
+tag_db(0x9F02, _, 'n12', "Amount, Authorised (numeric)").
+tag_db(0x9F03, _, 'n12', "Amount, Other (numeric)").
+tag_db(0x9F07, _, 'b2', "Application Usage Control (AUC)").
+tag_db(0x9F08, _, 'b2', "Application Version").
+tag_db(0x9F0D, _, 'b5', "Issuer Action Code (IAC) - Default").
+tag_db(0x9F0E, _, 'b5', "Issuer Action Code (IAC) - Denial").
+tag_db(0x9F0F, _, 'b5', "Issuer Action Code (IAC) - Online").
+tag_db(0x9F10, _, 'b...32', "Issuer Application Data").
+tag_db(0x9F1A, _, 'n3', "Terminal Country Code").
+tag_db(0x9F26, _, 'b8', "Application Cryptogram").
+tag_db(0x9F27, _, 'b1', "Cryptogram Information Data").
+tag_db(0x9F28, _, 'b2', "Contactless Application Capabilities Type").
+tag_db(0x9F2A, _, 'b2', "Kernel Identifier").
+tag_db(0x9F35, _, 'n2', "Terminal Type").
+tag_db(0x9F36, _, 'b2', "Application Transaction Counter (ATC)").
+tag_db(0x9F37, _, 'b4', "Unpredictable Number (UN)").
+tag_db(0x9F38, _, 'b...64', "Processing Options DOL (PDOL)").
+tag_db(0x9F42, _, 'n3', "Application Currency Code").
+tag_db(0x9F5A, 4, 'b1..4', "Membership Product Identifier").
+tag_db(0x9F5A, 3, 'b1..16', "Application Program Identifier").
+tag_db(0x9F5B, 2, 'b...252', "Data Storage DOL (DSDOL)"). %      ''
+tag_db(0x9F5B, 3, 'b...252', "Issuer Script Results").    % Max size is var.
+tag_db(0x9F5B, 4, '-', "Product Membership Number").
+tag_db(0x9F63, 2, 'b6', "Positions of UN and ATC in Track 1 (PUNATC) ").
+tag_db(0x9F64, 2, 'b1', "Number of ATC digits (NATC) in Track 1").
+tag_db(0x9F65, 2, 'b2', "Positions of CVC3 (PCVC3) in Track 2").
+tag_db(0x9F66, 3, 'b4', "Terminal Transaction Qualifiers (TTQ)").
+tag_db(0x9F6C, _, 'b2', "Card Transaction Qualifiers (CTQ)").
+tag_db(0xA5,   _, 't', "FCI Proprietary Template").
+tag_db(0xBF0C, _, 't', "FCI Issuer Discretionary Data").
+
+nesting_applicability(0x6F, 0x84).
+nesting_applicability(0x6F, 0xA5).
+nesting_applicability(0xA5, 0x50).
+nesting_applicability(0xA5, 0x9F38).
+nesting_applicability(0xA5, 0xBF0C).
+nesting_applicability(0xBF0C, 0x61).
+nesting_applicability(0x61, 0x4F).
+nesting_applicability(0x61, 0x50).
+nesting_applicability(0x61, 0x87).
+nesting_applicability(0x61, 0x9F5A).
+nesting_applicability(0x77, 0x57).
+nesting_applicability(0x77, 0x82).
+nesting_applicability(0x77, 0x5F34).
+nesting_applicability(0x77, 0x9F10).
+nesting_applicability(0x77, 0x9F26).
+nesting_applicability(0x77, 0x9F27).
+nesting_applicability(0x77, 0x9F36).
+nesting_applicability(0x77, 0x9F6C).
 
 % Tests
-db_consistent :- duplicates, ambiguous_type, ef_hosts_files.
+db_consistent :- duplicates, ambiguous_type, ef_hosts_files, db_rules_consistent.
+db_rules_consistent :- forall(clause(db_check(run,R),_), db_check(_,R)).
 duplicates :- forall(ft(F, _), findall(X, ft(F,X), [_])).
 ambiguous_type :- \+((ft(Fid, T1), ft(Fid, T2), T1 \= T2)).
 ef_hosts_files :- \+((ft(Ef, ef), pc(Ef, _))).
 %ef_has_dfname :- forall(fn(F, _), type(df, F)).
+%
+
+:- dynamic(db_check/2).
+
+db_check(run, all_constructed_tags_are_templates) :-
+    forall((tag_spec_db(T,_,S,_),bits(8,[_,_,1|_],T)), S == template).
+db_check(run, all_primitive_tags_are_data_elements) :-
+    forall((tag_spec_db(T,_,S,_),bits(8,[_,_,0|_],T)), S = element(_,_)).
+db_check(run, all_templates_are_constructed) :-
+    forall(tag_spec_db(T,_,template,_), ((E=8;E=16),bits(E,[_,_,1|_],T))).
+db_check(run, all_data_elements_are_primitive) :-
+    forall(tag_spec_db(T,_,element(_,_),_), ((E=8;E=16),bits(E,[_,_,0|_],T))).
+db_check(run, every_tag_spec_is_parseable) :-
+    forall(tag_db(T, K, _, N), (tag_spec_db(T, K, _, N) -> true; throw(error(tag(T),_)))).
+db_check(run, only_templates_can_nest_other_elements) :-
+    tag_db_kernel(K),
+    forall(nesting_applicability(T,_), tag_spec_db(T,K,template,_)).
+db_check(run, every_template_defines_nesting) :-
+    tag_db_kernel(K),
+    forall(tag_spec_db(T,K,template,_), nesting_applicability(T,_)).
+db_check(run, none_of_the_non_templates_can_nest_other_elements) :-
+    forall(tag_spec_db(T,_,element(_,_),_), ((\+nesting_applicability(T,_)) -> true; throw(error(tag(T),_)))).
+db_check(skip, every_non_template_is_nested_somewhere) :-
+    forall(tag_spec_db(T,_,element(_,_),_), nesting_applicability(_,T)).
 
 %% }
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -505,3 +653,6 @@ length_(L, N) --> { acyclic_term(L) }, foldl_(count_(noop_, N), L, 0, N).
 :- meta_predicate(count_(3,?,?,?,?,?,?)).
 count_(T_1, N, E, V0, Vn) --> { \+var(N), V0 =:= N -> false; Vn is V0 + 1 }, call(T_1, E).
 noop_(E) --> [E].
+
+between__(L, U, N) --> { between(L, U, N) }, number__(N).
+number__(N) --> { prolog_dialect(swi), number_chars(N, Cs) }, Cs.
