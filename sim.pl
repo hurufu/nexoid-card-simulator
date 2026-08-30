@@ -23,7 +23,7 @@ le(present(short,_), present(short,Ne)) --> singlet(0, Ne).
 le(present(extended,_), present(extended,Ne)) --> doublet(0, Ne).
 le(absent, present(extended,Ne)) --> [+0], doublet(0, Ne).
 
-response(Cmd, Dt, Qe) --> { response_for(Cmd, Dt, Qe, [Sw1,Sw2|Response]) }, output([Sw1,Sw2]), output(Response).
+response(Cmd, Dt, Qe) --> { response_for(Cmd, Dt, Qe, Response) }, output(Response).
 
 singlet(Lowest, A) --> rbyte(A), { A >= Lowest }.
 doublet(Lowest, N) --> rbyte(A), rbyte(B), { N is (A << 8) + B, N >= Lowest }.
@@ -37,88 +37,37 @@ put_bytes(Stream) --> [] ; [-Byte], { put_byte(Stream, Byte) }, put_bytes(Stream
 get_bytes(Stream, B, A) :-
     get_byte(Stream, Byte), Byte >= 0, A = [+Byte|X], (X = B; get_bytes(Stream, B, X)).
 
-response_for(Cmd, Dt, Qe, [Sw1,Sw2|Response]) :-
-    tsv_response_for(Cmd, Dt, Tsv, Sw1, Sw2),
-    phrase(ber(Tsv,Le), Tmp),
+response_for(Cmd, Dt, Qe, Response) :-
+    tsv_response_for(Cmd, Dt, Tsv, Status),
+    phrase(rapdu(Tsv,Le,Status), Tmp),
     maplist((is), Response, Tmp),
     le_ok(Qe, Le).
 
-tsv_response_for(select(aid_prefix,Occurrence,fci), Dt, Fci, 0x90, 0x00) :-
+tsv_response_for(select(aid_prefix,Occurrence,fci), Dt, Fci, completed(ok)) :-
     append(Dt, _, L),
     select(by_dfname, Occurrence, Fid, L),
     applicable_response(Fid, 0x6F, Fci),
     !.
-tsv_response_for(get_processing_options, _, Gpo, 0x90, 0x00) :-
+tsv_response_for(get_processing_options, _, Gpo, completed(ok)) :-
     applicable_response(22090, 0x77, Gpo),
     !.
-tsv_response_for(_, _, _, 0x65, 0x00). % Error no information given
+tsv_response_for(_, _, _, error(state_of_nvram(unchanged,no_info))).
 
 le_ok(Qe, Length) :- le_max(Qe, Max), Length =< Max.
 le_max(present(short,Ne), Max) :- Ne =:= 0 -> Max = 256; Max = Ne.
 le_max(present(extended,Ne), Max) :- Ne =:= 0 -> Max = 65535; Max = Ne.
 
-%% Effectful functions used for debugging %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% {
-
-%% format_apdu_pair(@Stream, +Cmd, +Dt, +Qe, +Tsv, +Sw1, +Sw2) is det.
-format_apdu_pair(Stream, Cmd, Dt, Qe, Tv, Sw1, Sw2) :-
-    format_capdu(Stream, Cmd, Dt, Qe),
-    format_rapdu(Stream, Tsv, Sw1, Sw2).
-
-%% format_capdu(@Stream, +Cmd, +Dt, +Qe) is det.
-format_capdu(Stream, Cmd, Dt, Qe) :-
-    format(Stream, '~|~40+< ~w ', [Cmd]),
-    format_ascii_or_hex_list(Stream, Dt),
-    format(Stream, ' ~w~n', [Qe]).
-
-%% format_capdu(@Stream, +Tsv, +Sw1, +Sw2) is det.
-format_rapdu(Stream, Tsv, Sw1, Sw2) :-
-    format(Stream, '~|~40+> [~|~`0t~16R~2+~|~`0t~16R~2+~|]~n', [Sw1,Sw2]),
-    format_explain(Tsv, ['-'], Stream),
-    format(Stream, '~n', []).
-
-format_explain([], Prefix, Stream) :- format(Stream, '~s', [Prefix]).
-format_explain([tsv(T,S,V)|Rest], Prefix, Stream) :-
-    tag_db_kernel(Kernel),
-    tag_properties_defaults(T, Kernel, [name(N),spec(S)], [name("Unknown"),spec(false)]),
-    format(Stream, '~s 0x~16R ~s (~w): ', [Prefix,T,N,S]),
-    format_value(S, V, Prefix, Stream),
-    format(Stream, '~n', []),
-    format_explain(Rest, Prefix, Stream).
-
-format_value(t, Value, Prefix, Stream) :-
-    format(Stream, '~n', []),
-    format_explain(Value, ['+'|Prefix], Stream).
-format_value(b(_,_), Value, _, Stream) :- format_ascii_or_hex_list(Stream, Value).
-format_value(an(_,_), Value, _, Stream) :- format_printable_list(Stream, Value).
-format_value(ans(_,_), Value, _, Stream) :- format_printable_list(Stream, Value).
-format_value(n(_), Value, _, Stream) :- format_printable_list(Stream, Value).
-format_value(cn(_,_), Value, _, Stream) :- format_hex_list(Stream, Value).
-
-format_hex_list(Stream, List) :- format_list(List, Stream, '~|~`0t~16R~2+').
-format_printable_list(Stream, List) :- format(Stream, '"~s"', [List]).
-
-format_ascii_or_hex_list(Stream, List) :-
-    phrase(in_alphabet(ans), List) ->
-        format_printable_list(Stream, List)
-    ;   format_hex_list(Stream, List).
-
-format_list([], _, _).
-format_list([H|T], Stream, Format) :-
-    format(Stream, Format, [H]),
-    format_list(T, Stream, Format).
-%% }
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 output([]) --> [].
 output([H|T]), [-H] --> output(T).
 
+rapdu(Tsv, Le, Status) --> ber(Tsv, Le), status(Status).
 ber(tsv(T,S,V), TL+LL+L) --> tag(T, TL), len(L, LL), value(S, V, L).
 tag(T, L) --> { tag_bytes(T, B, L) }, B.
 len(L, 1) --> [L].
 value(element(_,C), V, N) --> { value_between(C, N) }, length_(V, N).
 value(template, [], 0) --> [].
 value(template, [H|T], L1 + L2) --> ber(H, L1), value(template, T, L2).
+status(Status) --> { sw_db(Sw1, Sw2, Status) }, [Sw1,Sw2].
 
 tag_bytes(T, B, L) :-
     L is ceiling(log(T + 1) / log(2) / 8),
@@ -403,6 +352,37 @@ nesting_applicability(0x77, 0x9F27).
 nesting_applicability(0x77, 0x9F36).
 nesting_applicability(0x77, 0x9F6C).
 
+sw_db_extended(Sw1, Sw2, Status) :- sw_db(Sw1, Sw2, Status).
+sw_db_extended(Sw1, Sw2, Status) :- sw_db_rfu(Sw1, Sw2, Status).
+
+sw_db_rfu(0x6A, Sw2, error(wrong_parameters(rfu))) :-
+    between(0, 255, Sw2), \+ sw_db(0x6A, Sw2, _).
+
+sw_db(0x62, 0x00, warning(state_of_nvram(unchanged,no_info))).
+sw_db(0x63, 0x00, warning(state_of_nvram(changed,no_info))).
+sw_db(0x64, 0x00, error(state_of_nvram(unchanged,no_info))).
+sw_db(0x64, 0x01, error(state_of_nvram(unchanged,command_timeout))).
+sw_db(0x65, 0x00, error(state_of_nvram(changed,no_info))).
+sw_db(0x66, 0x00, error(command_not_allowed(no_info))).
+sw_db(0x6A, 0x00, error(wrong_parameters(no_info))).
+sw_db(0x6A, 0x80, error(wrong_parameters(bad_data))).
+sw_db(0x6A, 0x81, error(wrong_parameters(function_not_supported))).
+sw_db(0x6A, 0x82, error(wrong_parameters(file_not_found))).
+sw_db(0x6A, 0x83, error(wrong_parameters(record_not_found))).
+sw_db(0x6A, 0x84, error(wrong_parameters(insufficient_space))).
+sw_db(0x6A, 0x85, error(wrong_parameters(lc_inconsistent_with_tlv_structure))).
+sw_db(0x6A, 0x86, error(wrong_parameters(incorrect_p1_or_p2))).
+sw_db(0x6A, 0x87, error(wrong_parameters(lc_inconsistent_with_p1_or_p2))).
+sw_db(0x6A, 0x88, error(wrong_parameters(referenced_data_not_found))).
+sw_db(0x6A, 0x89, error(wrong_parameters(file_already_exists))).
+sw_db(0x6A, 0x8A, error(wrong_parameters(df_name_already_exists))).
+sw_db(0x6A, 0xF0, error(wrong_parameters(wrong_value))).
+sw_db(0x6F, 0x00, error(internal(aborted))).
+sw_db(0x6F, 0xFF, error(internal(dead))).
+sw_db(0x90, 0x00, completed(ok)).
+sw_db(0x90, 0x01, warning(pin_not_verified_3_or_more_tries_left)).
+sw_db(0x9F, N   , completed(response_size(N))) :- between(0, 255, N).
+
 % Tests
 db_consistent :- duplicates, ambiguous_type, ef_hosts_files, db_rules_consistent.
 db_rules_consistent :- forall(clause(db_check(run,R),_), db_check(_,R)).
@@ -434,6 +414,8 @@ db_check(run, none_of_the_non_templates_can_nest_other_elements) :-
     forall(tag_spec_db(T,_,element(_,_),_), ((\+nesting_applicability(T,_)) -> true; throw(error(tag(T),_)))).
 db_check(skip, every_non_template_is_nested_somewhere) :-
     forall(tag_spec_db(T,_,element(_,_),_), nesting_applicability(_,T)).
+db_check(run, sw_db_extended_terminates_on_the_most_generic_query) :-
+    sw_db_extended(_,_,_), fail; true.
 
 %% }
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
