@@ -1,5 +1,11 @@
 :- initialization(testall(base2k)).
 
+%% pow2_required_digits(+K, +Integer, -R) is det.
+%
+% R is a minimal number of digits to represent Integer in base 2^K.
+pow2_required_digits(K, Int, Int) :- K =:= 0.
+pow2_required_digits(K, Int, R  ) :- K > 0, R is ceiling(log(abs(Int) + 1) / log(2) / K).
+
 %% G(?Length, ?Digits, ?Int).
 %
 %  Wrappers for common chunk sizes, where G is one of `bits`, `crumbs`,
@@ -19,13 +25,23 @@ pow2_digits_int(K, Length, Digits, Int) :-
 %% pow2_digits_int(?Endianness, ?K, ?Length, ?Digits, ?Integer).
 %
 % Length number of Digits are Endianness representation of unsigned Integer in 2^K-base.
+%
+% Digits must cover whole Integer, thus first solution is always a list with
+% minimal number of digits to represent given Integer.
+%
+% If Integer is negative does 2's complement.
 pow2_digits_int(Endianness, K, Length, Digits, Int) :-
     (var(Length) -> L = Length; L is Length),
     base2k_integer(K),
     length(Digits, L),
     base2k_endianness_pow2_digits_int(Endianness, K, L, Digits, Int),
-    % FIXME: Should be doable using only integer arithmetic.
-    (K =:= 0 -> L >= Int; L >= ceiling(log(Int + 1) / log(2) / K)).
+    % FIXME: I know its quite bizarre. It can be done more elegantly and using
+    %        integer arithmetic only. The idea was to reject lists that don't
+    %        contain all meaningful digits. With this rejection it is possible
+    %        to distinguish padding from meaningful digits for base 2^0.
+    %        It is quite a corner-case. Better semantics are welcome.
+    pow2_required_digits(K, Int, R),
+    L >= R.
 
 base2k_endianness_pow2_digits_int(big, K, Length, Digits, Int) :-
     nonvar(Int) ->
@@ -122,22 +138,36 @@ t(base2k, true, ('Integer is decomposed into 16 bits (BE)' :-
     D == [1,0,1,0,1,0,1,1, 1,1,0,0,1,1,0,1]
 )).
 
-t(base2k, false, ('0xFA is not representable 2 digits in unary system' :-
+t(base2k, false, ('0xFA is not representable using 2 digits in unary numeral system' :-
     pow2_digits_int(_, 0, 2, _, 0xFA)
 )).
 
-t(base2k, true, ('The smallest representable size for 0xFA in unary equals the number (BE)' :-
+t(base2k, true, ('The smallest number of digits to represent any number equals to that number (BE)' :-
     once(pow2_digits_int(big, 0, N, _, 0xFA)),
     N == 0xFA
 )).
 
-t(base2k, true, ('The smallest representable size for 0xFA in unary equals the number (LE)' :-
+t(base2k, true, ('The smallest number of digits to represent any number equals to that number (LE)' :-
     once(pow2_digits_int(little, 0, N, _, 0xFA)),
     N == 0xFA
 )).
 
 t(base2k, error(domain_error(not_less_than_zero,-1)), ('Only accepts non-negative power of 2' :-
     pow2_digits_int(_, -1, _, _, _)
+)).
+
+t(base2k, true, ('It can be decided how many digits are needed in any 2^K base' :-
+    forall(
+        member(K-R, [
+            0-299,
+            1-9,
+            8-2
+        ]),
+        (
+            once(pow2_required_digits(K, 299, X)),
+            X =:= R
+        )
+    )
 )).
 
 base2k_test_bytes(M, I, BE, LE) :-
