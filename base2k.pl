@@ -23,7 +23,9 @@ pow2_digits_int(Endianness, K, Length, Digits, Int) :-
     (var(Length) -> L = Length; L is Length),
     base2k_integer(K),
     length(Digits, L),
-    base2k_endianness_pow2_digits_int(Endianness, K, L, Digits, Int).
+    base2k_endianness_pow2_digits_int(Endianness, K, L, Digits, Int),
+    % FIXME: Should be doable using only integer arithmetic.
+    (K =:= 0 -> L >= Int; L >= ceiling(log(Int + 1) / log(2) / K)).
 
 base2k_endianness_pow2_digits_int(big, K, Length, Digits, Int) :-
     nonvar(Int) ->
@@ -120,8 +122,18 @@ t(base2k, true, ('Integer is decomposed into 16 bits (BE)' :-
     D == [1,0,1,0,1,0,1,1, 1,1,0,0,1,1,0,1]
 )).
 
-t(base2k, skip, ('Expected behavior when K = 0 is unclear' :-
+t(base2k, false, ('0xFA is not representable 2 digits in unary system' :-
     pow2_digits_int(_, 0, 2, _, 0xFA)
+)).
+
+t(base2k, true, ('The smallest representable size for 0xFA in unary equals the number (BE)' :-
+    once(pow2_digits_int(big, 0, N, _, 0xFA)),
+    N == 0xFA
+)).
+
+t(base2k, true, ('The smallest representable size for 0xFA in unary equals the number (LE)' :-
+    once(pow2_digits_int(little, 0, N, _, 0xFA)),
+    N == 0xFA
 )).
 
 t(base2k, error(domain_error(not_less_than_zero,-1)), ('Only accepts non-negative power of 2' :-
