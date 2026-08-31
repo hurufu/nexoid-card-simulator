@@ -1,11 +1,5 @@
 :- initialization(testall(base2k)).
 
-%% pow2_required_digits(+K, +Integer, -R) is det.
-%
-% R is a minimal number of digits to represent Integer in base 2^K.
-pow2_required_digits(K, Int, Int) :- K =:= 0.
-pow2_required_digits(K, Int, R  ) :- K > 0, R is ceiling(log(abs(Int) + 1) / log(2) / K).
-
 %% G(?Length, ?Digits, ?Int).
 %
 %  Wrappers for common chunk sizes, where G is one of `bits`, `crumbs`,
@@ -15,6 +9,12 @@ crumbs( Length, Crumbs, Int) :- pow2_digits_int( 2, Length, Crumbs, Int).
 nybbles(Length, Nibs,   Int) :- pow2_digits_int( 4, Length, Nibs,   Int).
 bytes(  Length, Bytes,  Int) :- pow2_digits_int( 8, Length, Bytes,  Int).
 chomps( Length, Chomps, Int) :- pow2_digits_int(16, Length, Chomps, Int).
+
+%% pow2_required_digits(+K, +Integer, -R) is det.
+%
+% R is a minimal number of digits to represent Integer in base 2^K.
+pow2_required_digits(K, Int, Int) :- K =:= 0.
+pow2_required_digits(K, Int, R  ) :- K > 0, R is ceiling(log(abs(Int) + 1) / log(2) / K).
 
 %% pow2_digits_int(?K, ?Length, ?Digits, ?Integer).
 %
