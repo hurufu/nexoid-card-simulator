@@ -8,7 +8,7 @@ dol([H|T]) -->
     {   tag_db_kernel(K),
         tag_db(H, Type, K, _),
         tag_property(H, _, length(2)),
-        number_bytes(H, [A,B]),
+        bytes(2, [A,B], H),
         phrase(value(Type, _, N), _) }, [A,B,N], dol(T).
 
 % EMV Book 3 table CCD 3

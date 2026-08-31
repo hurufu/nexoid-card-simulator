@@ -10,7 +10,7 @@ CARD           := visa
 SOURCES        := $(PROLOG).pl \
                   $(CARD).pl \
                   test.pl \
-                  misc.pl \
+                  base2k.pl \
                   dcg_utils.pl \
                   tag_db.pl \
                   status_db.pl \
