@@ -1,0 +1,41 @@
+ber(tsv(T,S,V), TL+LL+L) --> tag(T, TL), len(L, LL), value(S, V, L).
+tag(T, L) --> { tag_bytes(T, B, L) }, B.
+len(L, 1) --> [L].
+value(element(_,C), V, N) --> { value_between(C, N) }, length__(V, N).
+value(template, [], 0) --> [].
+value(template, [H|T], L1 + L2) --> ber(H, L1), value(template, T, L2).
+
+tag_bytes(T, B, L) :-
+    L is ceiling(log(T + 1) / log(2) / 8),
+    bytes(L, T, B).
+
+value_between(constraint(byte,L,U), N) :- between(L, U, N).
+value_between(constraint(bcd,L,U), N) :- between(L, U, X), N is ceiling(X/2).
+
+spec_alphabet(ans, N) :- spec_alphabet(an, N); alphabet(ascii(other), N).
+spec_alphabet(an,  N) :- spec_alphabet(a, N); alphabet(ascii(digit), N).
+spec_alphabet(a,   N) :- alphabet(ascii(lower), N); alphabet(ascii(upper), N).
+
+alphabet(ascii(digit), N) :- between(0x30, 0x39, N).
+alphabet(ascii(upper), N) :- between(0x41, 0x5A, N).
+alphabet(ascii(lower), N) :- between(0x61, 0x7A, N).
+alphabet(ascii(other), N) :-
+    between(0x20, 0x2F, N)
+;   between(0x3A, 0x40, N)
+;   between(0x5B, 0x60, N)
+;   between(0x7B, 0x7E, N).
+
+
+ber_test(S,L) :-
+    R = [
+        0x77,0x3d,0x57,0x10,0x47,0x61,0x73,0x90,
+        0x01,0x01,0x01,0x19,0xd2,0x41,0x22,0x01,
+        0x17,0x58,0x94,0x72,0x82,0x02,0x00,0x00,
+        0x5f,0x34,0x01,0x01,0x9f,0x10,0x07,0x06,
+        0x01,0x11,0x03,0xa0,0x00,0x00,0x9f,0x26,
+        0x08,0x13,0xc9,0x1d,0x65,0xa9,0x10,0xc9,
+        0x56,0x9f,0x27,0x01,0x80,0x9f,0x36,0x02,
+        0x00,0x02,0x9f,0x6c,0x02,0x80,0x00
+    ],
+    phrase(ber(S,L), R).
+

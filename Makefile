@@ -7,6 +7,19 @@ LDFLAGS        := -fhardened -Whardened
 PROLOG         := scryer
 GPROLOG_LIBDIR := /usr/share/gprolog/lib
 CARD           := visa
+SOURCES        := $(PROLOG).pl \
+                  $(CARD).pl \
+                  test.pl \
+                  misc.pl \
+                  dcg_utils.pl \
+                  tag_db.pl \
+                  status_db.pl \
+                  tsv_unification.pl \
+                  ber.pl \
+                  sim.pl \
+                  card_utils.pl \
+                  card_interface.pl \
+                  init.pl
 
 .PHONY: start clean build start-hce start-int inter check
 
@@ -19,7 +32,7 @@ start-hce: hce | in.fifo out.fifo
 	exec ./$< >in.fifo <out.fifo
 start-sim: sim | in.fifo out.fifo
 	exec ./$<
-start-int: $(PROLOG).pl sim.pl $(CARD).pl init.pl | in.fifo out.fifo
+start-int: $(SOURCES) | in.fifo out.fifo
 	exec prologs -p $(PROLOG) -g main $^
 check-%: %.pl ut.pl sim.pl $(CARD).pl
 	exec prologs -p $* $^
