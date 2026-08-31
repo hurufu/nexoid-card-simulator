@@ -44,7 +44,7 @@ pass(skip).
 testsingle(U, C) :-
     gettest(U, D, G),
     asserta(D),
-    call_cleanup(runtest(G,C), retract(D)).
+    call_cleanup(runtest(U,G,C), retract(D)).
 
 %% gettest(-TestPredicate, -TestQuery).
 %
@@ -66,7 +66,7 @@ true(_).
 %
 % Try to collect all solutions and print predicate outcome no matter what.
 % Always succeeds.
-runtest(G, C) :- catch(findall(G,G,S), E, S = x(E)), what_to_print(S, G, C:R), write(C:R), nl.
+runtest(U, G, C) :- catch(findall(G,G,S), E, S = x(E)), what_to_print(S, G, C:R), write(C:U:R), nl.
 
 what_to_print([],          G, false:G).
 what_to_print([true(H)|_], _,  skip:H).

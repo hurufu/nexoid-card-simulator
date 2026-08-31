@@ -1,7 +1,7 @@
 % EMV-flavor of BER parser/serializer
 %
 
-:- initialization(testall(eber)).
+:- initialization(testall(emvber)).
 
 ber(K, tsv(T,S,V), TL+LL+VL) --> tag(S, K, T, TL), len(VL, LL), value(S, K, V, VL).
 tag(S, K, T, TL) --> { between(1, 4, TL) }, length__(Bs, TL), { bytes(TL, Bs, T), once(tag_spec_db(T, K, S, _)) }.
@@ -28,7 +28,7 @@ alphabet(ascii(other), N) :-
 ;   between(0x7B, 0x7E, N).
 
 
-t(eber, true, ('There exist only single BER serialization' :-
+t(emvber, true, ('There exist only single BER serialization' :-
     findall(0, ber_test(_,_,_), [_])
 )).
 

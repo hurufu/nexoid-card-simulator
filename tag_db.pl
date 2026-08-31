@@ -173,18 +173,21 @@ t(tag_db, true, (all_data_elements_are_primitive :-
         )
     )
 )).
-t(tag_db, true, (every_tag_spec_is_parseable :-
+t(tag_db, true, ('Every tag spec is parseable' :-
     forall(tag_db(T,K,_,N), (tag_spec_db(T,K,_,N)->true;throw(error(tag(T),_))))
 )).
-t(tag_db, true, (only_templates_can_nest_other_elements :-
+t(tag_db, true, ('Only templates can nest other elements' :-
     forall(nesting_applicability(T,_), tag_spec_db(T,3,template,_))
 )).
-t(tag_db, true, (every_template_defines_nesting :-
+t(tag_db, true, ('Every template defines nesting' :-
     forall(tag_spec_db(T,4,template,_), nesting_applicability(T,_))
 )).
-t(tag_db, true, (none_of_the_non_templates_can_nest_other_elements :-
+t(tag_db, true, ('None of the non templates can nest other elements' :-
     forall(tag_spec_db(T,_,element(_,_),_), (\+nesting_applicability(T,_)->true;throw(error(tag(T),_))))
 )).
-t(tag_db, skip, (every_non_template_is_nested_somewhere :-
+t(tag_db, skip, ('Every non-template is nested somewhere' :-
     forall(tag_spec_db(T,_,element(_,_),_), nesting_applicability(_,T))
+)).
+t(tag_db, false, ('All format specifiers are enumerable' :-
+    phrase(fmt(_), _), fail
 )).
