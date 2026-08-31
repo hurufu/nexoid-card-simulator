@@ -30,6 +30,20 @@ pow2_digits_int(K, Length, Digits, Int) :-
 % minimal number of digits to represent given Integer.
 %
 % If Integer is negative does 2's complement.
+%
+% TODO: I don't consider this predicate particularly good – its exact meaning is
+%       somewhat shaky (with K=0 or with Int<0 or with LE mode which is not what
+%       most people will think it is). Also it has too many arguments which
+%       makes it difficult to test all possible combinations. Something more
+%       elegant is needed.
+%
+%       I've briefly considered cyclic terms, but they aren't well suited to
+%       represent padding, because it will work only for little-endian mode and
+%       will fail with occurs-check.
+%
+%       I would like to have length somehow implicit; I have 4 different
+%       implementations it would be nice to have single one and that check at the
+%       very end isn't great.
 pow2_digits_int(Endianness, K, Length, Digits, Int) :-
     (var(Length) -> L = Length; L is Length),
     base2k_integer(K),
