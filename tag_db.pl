@@ -1,5 +1,5 @@
 %% EMV tag database %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-:- initialization(db_consistent).
+:- initialization(testall(tag_db)).
 
 tag_properties_defaults(Id, Kernel, L, D) :- maplist(tag_property_default(Id,Kernel), L, D).
 tag_properties(Id, Kernel, L) :- maplist(tag_property(Id,Kernel), L).
@@ -137,35 +137,54 @@ nesting_applicability(0x77, 0x9F36).
 nesting_applicability(0x77, 0x9F6C).
 
 % Tests
-db_consistent :- duplicates, ambiguous_type, ef_hosts_files, db_rules_consistent.
-db_rules_consistent :- forall(clause(db_check(run,R),_), db_check(_,R)).
-duplicates :- forall(ft(F, _), findall(X, ft(F,X), [_])).
-ambiguous_type :- \+((ft(Fid, T1), ft(Fid, T2), T1 \= T2)).
-ef_hosts_files :- \+((ft(Ef, ef), pc(Ef, _))).
-%ef_has_dfname :- forall(fn(F, _), type(df, F)).
-%
-
-:- dynamic(db_check/2).
-
-db_check(run, all_constructed_tags_are_templates) :-
-    forall((tag_spec_db(T,_,S,_),bits(8,[_,_,1|_],T)), S == template).
-db_check(run, all_primitive_tags_are_data_elements) :-
-    forall((tag_spec_db(T,_,S,_),bits(8,[_,_,0|_],T)), S = element(_,_)).
-db_check(run, all_templates_are_constructed) :-
-    forall(tag_spec_db(T,_,template,_), ((E=8;E=16),bits(E,[_,_,1|_],T))).
-db_check(run, all_data_elements_are_primitive) :-
-    forall(tag_spec_db(T,_,element(_,_),_), ((E=8;E=16),bits(E,[_,_,0|_],T))).
-db_check(run, every_tag_spec_is_parseable) :-
-    forall(tag_db(T, K, _, N), (tag_spec_db(T, K, _, N) -> true; throw(error(tag(T),_)))).
-db_check(run, only_templates_can_nest_other_elements) :-
-    tag_db_kernel(K),
-    forall(nesting_applicability(T,_), tag_spec_db(T,K,template,_)).
-db_check(run, every_template_defines_nesting) :-
-    tag_db_kernel(K),
-    forall(tag_spec_db(T,K,template,_), nesting_applicability(T,_)).
-db_check(run, none_of_the_non_templates_can_nest_other_elements) :-
-    forall(tag_spec_db(T,_,element(_,_),_), ((\+nesting_applicability(T,_)) -> true; throw(error(tag(T),_)))).
-db_check(skip, every_non_template_is_nested_somewhere) :-
-    forall(tag_spec_db(T,_,element(_,_),_), nesting_applicability(_,T)).
-db_check(run, sw_db_extended_terminates_on_the_most_generic_query) :-
-    sw_db_extended(_,_,_), fail; true.
+t(tag_db, true, (all_constructed_tags_are_templates :-
+    forall(
+        (
+            tag_spec_db(T,_,S,_),
+            bits(8,[_,_,1|_],T)
+        ),
+        S == template
+    )
+)).
+t(tag_db, true, (all_primitive_tags_are_data_elements :-
+    forall(
+        (
+            tag_spec_db(T,_,S,_),
+            bits(8,[_,_,0|_],T)
+        ),
+        S = element(_,_)
+    )
+)).
+t(tag_db, true, (all_templates_are_constructed :-
+    forall(
+        tag_spec_db(T,_,template,_),
+        (
+            (E=8; E=16),
+            bits(E,[_,_,1|_],T)
+        )
+    )
+)).
+t(tag_db, true, (all_data_elements_are_primitive :-
+    forall(
+        tag_spec_db(T,_,element(_,_),_),
+        (
+            (E=8; E=16),
+            bits(E,[_,_,0|_],T)
+        )
+    )
+)).
+t(tag_db, true, (every_tag_spec_is_parseable :-
+    forall(tag_db(T,K,_,N), (tag_spec_db(T,K,_,N)->true;throw(error(tag(T),_))))
+)).
+t(tag_db, true, (only_templates_can_nest_other_elements :-
+    forall(nesting_applicability(T,_), tag_spec_db(T,3,template,_))
+)).
+t(tag_db, true, (every_template_defines_nesting :-
+    forall(tag_spec_db(T,4,template,_), nesting_applicability(T,_))
+)).
+t(tag_db, true, (none_of_the_non_templates_can_nest_other_elements :-
+    forall(tag_spec_db(T,_,element(_,_),_), (\+nesting_applicability(T,_)->true;throw(error(tag(T),_))))
+)).
+t(tag_db, skip, (every_non_template_is_nested_somewhere :-
+    forall(tag_spec_db(T,_,element(_,_),_), nesting_applicability(_,T))
+)).

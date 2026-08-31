@@ -1,3 +1,5 @@
+:- initialization(testall(status_db)).
+
 sw_db_extended(Sw1, Sw2, Status) :- sw_db(Sw1, Sw2, Status).
 sw_db_extended(Sw1, Sw2, Status) :- sw_db_rfu(Sw1, Sw2, Status).
 
@@ -28,3 +30,7 @@ sw_db(0x6F, 0xFF, error(internal(dead))).
 sw_db(0x90, 0x00, completed(ok)).
 sw_db(0x90, 0x01, warning(pin_not_verified_3_or_more_tries_left)).
 sw_db(0x9F, N   , completed(response_size(N))) :- between(0, 255, N).
+
+t(status_db, false, ('sw_db_extended/3 terminates on the most generic query' :-
+    sw_db_extended(_,_,_), fail
+)).

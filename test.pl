@@ -1,4 +1,6 @@
 :- dynamic(t/3).
+:- multifile(t/3).
+:- discontiguous(t/3).
 
 %% testall.
 %

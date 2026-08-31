@@ -9,3 +9,10 @@ absolute_path(C) --> { nesting(P,C) }, absolute_path(P), [C].
 dfname(Fid, A) :- fn(Fid, A).
 fid_tag_property(F, 0x84, P) :- fn(F, P).
 fid_tag_property(F, T, P) :- pp(F, T, P).
+
+db_consistent :- duplicates, ambiguous_type, ef_hosts_files.
+duplicates :- forall(ft(F, _), findall(X, ft(F,X), [_])).
+ambiguous_type :- \+((ft(Fid, T1), ft(Fid, T2), T1 \= T2)).
+ef_hosts_files :- \+((ft(Ef, ef), pc(Ef, _))).
+%ef_has_dfname :- forall(fn(F, _), type(df, F)).
+%

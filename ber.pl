@@ -1,16 +1,18 @@
-ber(tsv(T,S,V), TL+LL+L) --> tag(T, TL), len(L, LL), value(S, V, L).
-tag(T, L) --> { tag_bytes(T, B, L) }, B.
-len(L, 1) --> [L].
-value(element(_,C), V, N) --> { value_between(C, N) }, length__(V, N).
-value(template, [], 0) --> [].
-value(template, [H|T], L1 + L2) --> ber(H, L1), value(template, T, L2).
+% EMV-flavor of BER parser/serializer
+%
 
-tag_bytes(T, B, L) :-
-    L is ceiling(log(T + 1) / log(2) / 8),
-    bytes(L, T, B).
+:- initialization(testall(eber)).
 
-value_between(constraint(byte,L,U), N) :- between(L, U, N).
-value_between(constraint(bcd,L,U), N) :- between(L, U, X), N is ceiling(X/2).
+ber(K, tsv(T,S,V), TL+LL+VL) --> tag(S, K, T, TL), len(VL, LL), value(S, K, V, VL).
+tag(S, K, T, TL) --> { between(1, 4, TL) }, length__(Bs, TL), { bytes(TL, Bs, T), once(tag_spec_db(T, K, S, _)) }.
+len(VL, 1) --> [X], { when((nonvar(X);nonvar(VL)), (nonvar(X) -> VL is X; X is VL)) }.
+value(element(_,C), _K, V, VL) --> { value_between(C, VL) }, length__(V, VL).
+value(template, K, V, VL) --> value_template(V, VL, K).
+value_template([], 0, _) --> [].
+value_template([H|T], VL, K) --> ber(K, H, HL), value_template(T, TL, K), { var(VL) -> VL = HL + TL; VL =:= HL + TL }.
+
+value_between(constraint(byte,L,U), VL) :- between(L, U, VL).
+value_between(constraint(bcd,L,U), VL) :- between(L, U, X), VL is ceiling(X/2).
 
 spec_alphabet(ans, N) :- spec_alphabet(an, N); alphabet(ascii(other), N).
 spec_alphabet(an,  N) :- spec_alphabet(a, N); alphabet(ascii(digit), N).
@@ -26,8 +28,12 @@ alphabet(ascii(other), N) :-
 ;   between(0x7B, 0x7E, N).
 
 
-ber_test(S,L) :-
-    R = [
+t(eber, true, ('There exist only single BER serialization' :-
+    findall(0, ber_test(_,_,_), [_])
+)).
+
+ber_test(S, L1, R1) :-
+    R1 = [
         0x77,0x3d,0x57,0x10,0x47,0x61,0x73,0x90,
         0x01,0x01,0x01,0x19,0xd2,0x41,0x22,0x01,
         0x17,0x58,0x94,0x72,0x82,0x02,0x00,0x00,
@@ -37,5 +43,7 @@ ber_test(S,L) :-
         0x56,0x9f,0x27,0x01,0x80,0x9f,0x36,0x02,
         0x00,0x02,0x9f,0x6c,0x02,0x80,0x00
     ],
-    phrase(ber(S,L), R).
-
+    phrase(ber(3,S,L1), R1),
+    phrase(ber(3,S,L2), R2),
+    L1 =:= L2,
+    R1 == R2.
