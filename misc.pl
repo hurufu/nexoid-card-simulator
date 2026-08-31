@@ -21,7 +21,7 @@ int_base2k(K, Length, Digits, Int) :-
 % Length number of Digits are Endianness representation of unsigned Integer in 2^K-base.
 int_base2k(Endianness, K, Length, Digits, Int) :-
     (var(Length) -> L = Length; L is Length),
-    between(1, 16, K),
+    misc_integer(K),
     length(Digits, L),
     misc_endianness_base2k_int_len_digits(Endianness, K, L, Digits, Int).
 
@@ -41,6 +41,7 @@ misc_nonvar_le___(K, Int, Digit, Exp, NextExp) :- Digit is (Int /\ ((2^K-1) <<  
 misc_var_le___(K, Digit, (A,Exp), (A+(Digit << (Exp*K)),(Exp+K))) :- Max is 2^K-1, between(0, Max, Digit).
 misc_var_be___(K, Digit, (E,L), (E+(Digit << (K*L)),L-1)).
 
+misc_integer(K) :- length(_, K).
 
 t(misc, true, ('Integer conforms with bytes (BE)' :-
     forall(misc_test_bytes(M, I, BE, _), int_base2k(big, 8, M, BE, I))
@@ -117,6 +118,14 @@ t(misc, true, ('Integer is composed from bytes bytes with leading zeros (BE)' :-
 t(misc, true, ('Integer is decomposed into 16 bits (BE)' :-
     int_base2k(big, 1, 16, D, 0xABCD),
     D == [1,0,1,0,1,0,1,1, 1,1,0,0,1,1,0,1]
+)).
+
+t(misc, skip, ('Expected behavior when K = 0 is unclear' :-
+    int_base2k(_, 0, 2, _, 0xFA)
+)).
+
+t(misc, error(domain_error(not_less_than_zero,-1)), ('Only accepts non-negative power of 2' :-
+    int_base2k(_, -1, _, _, _)
 )).
 
 misc_test_bytes(M, I, BE, LE) :-

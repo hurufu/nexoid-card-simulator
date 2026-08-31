@@ -54,8 +54,8 @@ testsingle(U, C) :-
 gettest(U, (H:-B), G) :- t(U, E, (H:-B)), expectation_goal(E, H, G).
 
 expectation_goal(true, H, H).
-expectation_goal(false, H, \+reif:H).
-expectation_goal(error(E), H, catch(reif:H, error(E, _), true)).
+expectation_goal(false, H, \+H).
+expectation_goal(error(E), H, catch(H, error(E, _), true)).
 expectation_goal(skip, H, true(H)).
 
 true(_).
