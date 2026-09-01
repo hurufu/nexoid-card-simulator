@@ -20,6 +20,15 @@ tag_property(Id, Kernel, spec(S)) :- tag_db(Id, S, Kernel, _).
 %% fmt(FormatSpecification)// is multi.
 %
 % Data element specification format.
+%
+% TODO: Some sub-formats that are not formally introduced in the documentation aren't supported:
+%         * array notation: 1..4 an8
+%         * fake templates (implicit sequence): s22
+%         * null padded ASCII strings: zan
+%
+% TODO: Type algebra: an2..8 + b3..9 = b9, n12 + n3 = n15. It can be useful to
+%       verify sequence type based on type of its constituents.
+%
 fmt(false) --> fmt_false.
 fmt(template) --> fmt_template.
 fmt(element(F,constraint(C,L,U))) --> fmt_format(F), { fmt_constraint(F, C), fmt_max_unspec(M, Y) }, fmt_lower_upper(M, Y, L, U).
@@ -68,6 +77,7 @@ tag_db(0x5F20, _, 'ans2..26', "Cardholder Name").
 tag_db(0x5F24, _, 'n6', "Application Expiration Date").
 tag_db(0x5F25, _, 'n6', "Application Effective Date").
 tag_db(0x5F2A, _, 'n3', "Transaction Currency Code").
+tag_db(0x5F2D, _, 'an2..8', "Language Preference"). % Alternative type would be '1..4 an2'
 tag_db(0x5F30, _, 'n3..4', "Service Code").
 tag_db(0x5F34, _, 'n2', "Application PAN Sequence Number").
 tag_db(0x61,   _, 't', "Application Template").
@@ -115,26 +125,35 @@ tag_db(0x9F66, 3, 'b4', "Terminal Transaction Qualifiers (TTQ)").
 tag_db(0x9F6C, _, 'b2', "Card Transaction Qualifiers (CTQ)").
 tag_db(0xA5,   _, 't', "FCI Proprietary Template").
 tag_db(0xBF0C, _, 't', "FCI Issuer Discretionary Data").
+tag_db(0xDF8116, 2, 'b22', "User Interface Request Data"). % Alternative type would be 's22' or 's'
+% FIXME: Decide how and if I should encode fake templates.
+%tag_db(sequence(0xDF8116), 2, 'b1', "Message Identifier").
+%tag_db(sequence(0xDF8116), 2, 'b1', "Status").
+%tag_db(sequence(0xDF8116), 2, 'n6', "Hold Time").
+%tag_db(sequence(0xDF8116), 2, 'an8', "Language Preference"). % Alternative type would be '4 zan2'
+%tag_db(sequence(0xDF8116), 2, '1b', "Value Qualifier").
+%tag_db(sequence(0xDF8116), 2, 'n12', "Value").
+%tag_db(sequence(0xDF8116), 2, 'n3', "Currency Code").
 
-
-nesting_applicability(0x6F, 0x84).
-nesting_applicability(0x6F, 0xA5).
-nesting_applicability(0xA5, 0x50).
-nesting_applicability(0xA5, 0x9F38).
-nesting_applicability(0xA5, 0xBF0C).
-nesting_applicability(0xBF0C, 0x61).
 nesting_applicability(0x61, 0x4F).
 nesting_applicability(0x61, 0x50).
 nesting_applicability(0x61, 0x87).
 nesting_applicability(0x61, 0x9F5A).
+nesting_applicability(0x6F, 0x84).
+nesting_applicability(0x6F, 0xA5).
 nesting_applicability(0x77, 0x57).
-nesting_applicability(0x77, 0x82).
 nesting_applicability(0x77, 0x5F34).
+nesting_applicability(0x77, 0x82).
 nesting_applicability(0x77, 0x9F10).
 nesting_applicability(0x77, 0x9F26).
 nesting_applicability(0x77, 0x9F27).
 nesting_applicability(0x77, 0x9F36).
 nesting_applicability(0x77, 0x9F6C).
+nesting_applicability(0xA5, 0x50).
+nesting_applicability(0xA5, 0x9F38).
+nesting_applicability(0xA5, 0xBF0C).
+nesting_applicability(0xBF0C, 0x61).
+%nesting_applicability(0xDF8116, sequence(0xDF8116)).
 
 % Tests
 t(tag_db, true, (all_constructed_tags_are_templates :-
@@ -159,7 +178,7 @@ t(tag_db, true, (all_templates_are_constructed :-
     forall(
         tag_spec_db(T,_,template,_),
         (
-            (E=8; E=16),
+            (E=8; E=16; E=24; E=32),
             bits(E,[_,_,1|_],T)
         )
     )
@@ -168,7 +187,7 @@ t(tag_db, true, (all_data_elements_are_primitive :-
     forall(
         tag_spec_db(T,_,element(_,_),_),
         (
-            (E=8; E=16),
+            (E=8; E=16; E=24; E=32),
             bits(E,[_,_,0|_],T)
         )
     )
