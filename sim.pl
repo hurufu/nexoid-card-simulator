@@ -35,12 +35,12 @@ in__(E) --> [+E].
 
 rbyte(N) --> [+N], { between(0, 255, N) }.
 
-rapdu(Tsv, Le, Status) --> ber(Tsv, Le), status(Status).
+rapdu(Kernel, Tsv, Le, Status) --> value_template(Tsv, Le, Kernel), status(Status).
 status(Status) --> { sw_db(Sw1, Sw2, Status) }, [Sw1,Sw2].
 
 response_for(Cmd, Dt, Qe, Response) :-
     tsv_response_for(Cmd, Dt, Tsv, Status),
-    phrase(rapdu(Tsv,Le,Status), Tmp),
+    phrase(rapdu(3,Tsv,Le,Status), Tmp),
     maplist((is), Response, Tmp),
     le_ok(Qe, Le).
 
@@ -64,11 +64,11 @@ tsv_response_for(select(aid_prefix,Occurrence,fci), Dt, Fci, completed(ok)) :-
 tsv_response_for(get_processing_options, _, Gpo, completed(ok)) :-
     applicable_response(22090, 0x77, Gpo),
     !.
-tsv_response_for(_, _, _, error(state_of_nvram(unchanged,no_info))).
+tsv_response_for(_, _, [], error(state_of_nvram(unchanged,no_info))).
 
 applicable_response(Fid, Root, X) :-
-    all_applicable_nested_non_templates(Fid, Root, Chains),
-    maplist(trul([X]), Chains).
+    all_applicable_nested_non_templates(Fid, Root, [C|Cs]),
+    maplist(trul(X), [C|Cs]).
 
 all_applicable_nested_non_templates(Fid, Root, Chains) :-
     tag_db_kernel(K),

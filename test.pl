@@ -1,6 +1,5 @@
 :- dynamic(t/3).
 :- multifile(t/3).
-:- discontiguous(t/3).
 
 %% testall.
 %
@@ -66,9 +65,9 @@ true(_).
 %
 % Try to collect all solutions and print predicate outcome no matter what.
 % Always succeeds.
-runtest(U, G, C) :- catch(findall(G,G,S), E, S = x(E)), what_to_print(S, G, C:R), write(C:U:R), nl.
+runtest(U, G, C) :- catch(findall(G,G,S), E, S = x(E)), what_to_print(S, G, C/R), write(C/U/R), nl.
 
-what_to_print([],          G, false:G).
-what_to_print([true(H)|_], _,  skip:H).
-what_to_print([H|T],       _,  true:[H|T]) :- H \= true(_).
-what_to_print(x(E),        G,     E:G).
+what_to_print([],          G, false/G).
+what_to_print([true(H)|_], _,  skip/H).
+what_to_print([H|T],       _,  true/[H|T]) :- H \= true(_).
+what_to_print(x(E),        G,     E/G).

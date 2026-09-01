@@ -14,7 +14,7 @@ count__(T_1, N, E, V0, Vn) --> { \+var(N), V0 =:= N -> false; Vn is V0 + 1 }, ca
 noop__(E) --> [E].
 
 between__(L, U, N) --> { between(L, U, N) }, number__(N).
-number__(N) --> { prolog_dialect(swi), number_chars(N, Cs) }, Cs.
+number__(N) --> { number_chars(N, Cs) }, Cs.
 
 int_span__(From, To) --> { To >= From }, foldl__(incr__(To), _, From, To).
 incr__(N, _, V0, Vn) --> { V0 =:= N -> false; Vn is V0 + 1 }, [V0].

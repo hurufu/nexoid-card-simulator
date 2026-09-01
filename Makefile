@@ -9,6 +9,7 @@ GPROLOG_LIBDIR := /usr/share/gprolog/lib
 CARD           := visa
 SOURCES        := $(PROLOG).pl \
                   $(CARD).pl \
+                  debug.pl \
                   test.pl \
                   base2k.pl \
                   dcg_utils.pl \

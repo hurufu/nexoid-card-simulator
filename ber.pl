@@ -3,9 +3,9 @@
 
 :- initialization(testall(emvber)).
 
-ber(K, tsv(T,S,V), TL+LL+VL) --> tag(S, K, T, TL), len(VL, LL), value(S, K, V, VL).
+ber(K, tsv(T,S,V), BL) --> tag(S, K, T, TL), len(VL, LL), value(S, K, V, VL), { BL is TL + LL + VL }.
 tag(S, K, T, TL) --> { between(1, 4, TL) }, length__(Bs, TL), { bytes(TL, Bs, T), once(tag_spec_db(T, K, S, _)) }.
-len(VL, 1) --> [X], { when((nonvar(X);nonvar(VL)), (nonvar(X) -> VL is X; X is VL)) }.
+len(VL, 1) --> [X], { arith_eq_si(VL, X) }.
 value(element(_,C), _K, V, VL) --> { value_between(C, VL) }, length__(V, VL).
 value(template, K, V, VL) --> value_template(V, VL, K).
 value_template([], 0, _) --> [].
@@ -27,6 +27,18 @@ alphabet(ascii(other), N) :-
 ;   between(0x5B, 0x60, N)
 ;   between(0x7B, 0x7E, N).
 
+%% arith_eq_si(?L, ?R) is semidet.
+%
+% L and R arithmetic expressions represent the same number. Throws an exception
+% if neither are sufficiently instantied.
+arith_eq_si(L, R) :-
+    ground(L), ground(R) ->
+        L =:= R
+    ;   var(L), var(R) ->
+            L = R
+        ;   var(L) ->
+                L is R
+            ;   R is L.
 
 t(emvber, true, ('There exist only single BER serialization' :-
     findall(0, ber_test(_,_,_), [_])
@@ -46,4 +58,5 @@ ber_test(S, L1, R1) :-
     phrase(ber(3,S,L1), R1),
     phrase(ber(3,S,L2), R2),
     L1 =:= L2,
-    R1 == R2.
+    maplist((is), R3, R2),
+    R1 == R3.
