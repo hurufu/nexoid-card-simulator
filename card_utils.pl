@@ -31,11 +31,11 @@ qual(Qualifiers, Name, Bit) :- Name \= false, member(Name, Qualifiers) -> Bit = 
 
 % https://sdk.supply/comparison-of-emv-compatible-applications
 % 9F10
+%                        06 01   0A   03 90   00   00 // CDET
 visa_discretionary_data([B1,B2,0x11,0x03,B5,0x00,0x00]) :-
     cryptogram_version_number(B1),
     derivation_key_indicator(B2),
-    cvr(A, B, C, D, E, F),
-    phrase(cvr_1(A, B, C, D, E, F), Bits),
+    phrase(cvr_1, Bits),
     bits(8, Bits, B5).
 
 %% cvr_1(A, B, C, D, E, F).
@@ -50,7 +50,9 @@ visa_discretionary_data([B1,B2,0x11,0x03,B5,0x00,0x00]) :-
 %
 % @source EMB Book 3 section C7.3
 %
-cvr_1(A,B,C,D,E,F) --> cvr_second_generate_ac(A), cvr_first_generate_ac(B), bit(C), bit(D), { D = 0 -> E = 0; D = 1 }, bit(E), bit(F).
+cvr_1 -->
+    { cvr(A, B, C, D, E, F) },
+    cvr_second_generate_ac(A), cvr_first_generate_ac(B), bit(C), bit(D), { D = 0 -> E = 0; D = 1 }, bit(E), bit(F).
 
 % Application Cryptogram Type Returned in 2nd GENERATE AC
 cvr_second_generate_ac(aac) --> [0,0].

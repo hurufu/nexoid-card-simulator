@@ -92,6 +92,7 @@ tag_db(0x8A,   _, 'an2', "Authorisation Response Code").
 tag_db(0x8C,   _, 'b...252', "Card Risk Management DOL 1").
 tag_db(0x8D,   _, 'b...252', "Card Risk Management DOL 2").
 tag_db(0x8E,   _, 'b...252', "Cardholder Verification Method (CVM) List").
+tag_db(0x94,   _, 'var...252', "Application File Locator (AFL)").
 tag_db(0x95,   _, 'b5', "Terminal Verification Results (TVR)").
 tag_db(0x9A,   _, 'n6', "Transaction Date").
 tag_db(0x9C,   _, 'n2', "Transaction Type").
@@ -113,6 +114,7 @@ tag_db(0x9F36, _, 'b2', "Application Transaction Counter (ATC)").
 tag_db(0x9F37, _, 'b4', "Unpredictable Number (UN)").
 tag_db(0x9F38, _, 'b...64', "Processing Options DOL (PDOL)").
 tag_db(0x9F42, _, 'n3', "Application Currency Code").
+tag_db(0x9F4B, _, 'b...var', "Signed Dynamic Application Data"). % Fix type
 tag_db(0x9F5A, 4, 'b1..4', "Membership Product Identifier").
 tag_db(0x9F5A, 3, 'b1..16', "Application Program Identifier").
 tag_db(0x9F5B, 2, 'b...252', "Data Storage DOL (DSDOL)"). %      ''
@@ -123,6 +125,7 @@ tag_db(0x9F64, 2, 'b1', "Number of ATC digits (NATC) in Track 1").
 tag_db(0x9F65, 2, 'b2', "Positions of CVC3 (PCVC3) in Track 2").
 tag_db(0x9F66, 3, 'b4', "Terminal Transaction Qualifiers (TTQ)").
 tag_db(0x9F6C, _, 'b2', "Card Transaction Qualifiers (CTQ)").
+tag_db(0x9F6E, 3, 'b4', "Unknown").
 tag_db(0xA5,   _, 't', "FCI Proprietary Template").
 tag_db(0xBF0C, _, 't', "FCI Issuer Discretionary Data").
 tag_db(0xDF8116, 2, 'b22', "User Interface Request Data"). % Alternative type would be 's22' or 's'
@@ -144,11 +147,15 @@ nesting_applicability(0x6F, 0xA5).
 nesting_applicability(0x77, 0x57).
 nesting_applicability(0x77, 0x5F34).
 nesting_applicability(0x77, 0x82).
+nesting_applicability(0x77, 0x94).
 nesting_applicability(0x77, 0x9F10).
 nesting_applicability(0x77, 0x9F26).
 nesting_applicability(0x77, 0x9F27).
 nesting_applicability(0x77, 0x9F36).
+nesting_applicability(0x77, 0x9F4B).
 nesting_applicability(0x77, 0x9F6C).
+nesting_applicability(0x77, 0x9F6E).
+nesting_applicability(0x80, 0x94).
 nesting_applicability(0xA5, 0x50).
 nesting_applicability(0xA5, 0x9F38).
 nesting_applicability(0xA5, 0xBF0C).
