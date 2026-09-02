@@ -1,13 +1,15 @@
-main :- phrase(exchange, []) -> main; true.
+main :- main([]).
 
-exchange --> get_bytes(rd), command_response_pair, put_bytes(wr).
+main(FsPrev) :- phrase(exchange(FsPrev, FsNext), []) -> main(FsNext); true.
+
+exchange(FsPrev, FsNext) --> get_bytes(rd), command_response_pair(FsPrev, FsNext), put_bytes(wr).
 
 put_bytes(Stream) --> [] ; [-Byte], { put_byte(Stream, Byte) }, put_bytes(Stream).
 get_bytes(Stream, B, A) :-
     get_byte(Stream, Byte), Byte >= 0, A = [+Byte|X], (X = B; get_bytes(Stream, B, X)).
 
 % section 5.1
-command_response_pair --> command(Cmd, Dt, Qe), response(Cmd, Dt, Qe).
+command_response_pair(FsPrev, FsNext) --> command(Cmd, Dt, Qe), response(Cmd, Dt, Qe, FsPrev, FsNext).
 
 command(Cmd, Dt, Qe) --> hdr(Cmd, Qc, Qe), lc(Qc), cmd(Qc, Dt), le(Qc, Qe).
 
@@ -25,7 +27,7 @@ le(present(short,_), present(short,Ne)) --> singlet(0, Ne).
 le(present(extended,_), present(extended,Ne)) --> doublet(0, Ne).
 le(absent, present(extended,Ne)) --> [+0], doublet(0, Ne).
 
-response(Cmd, Dt, Qe) --> { response_for(Cmd, Dt, Qe, Response) }, output(Response).
+response(Cmd, Dt, Qe, FsPrev, FsNext) --> { response_for(Cmd, Dt, Qe, Response, FsPrev, FsNext) }, output(Response).
 
 singlet(Lowest, A) --> rbyte(A), { A >= Lowest }.
 doublet(Lowest, N) --> rbyte(A), rbyte(B), { N is (A << 8) + B, N >= Lowest }.
@@ -38,8 +40,8 @@ rbyte(N) --> [+N], { between(0, 255, N) }.
 rapdu(Kernel, Tsv, Le, Status) --> value_template(Tsv, Le, Kernel), status(Status).
 status(Status) --> { sw_db(Sw1, Sw2, Status) }, [Sw1,Sw2].
 
-response_for(Cmd, Dt, Qe, Response) :-
-    tsv_response_for(Cmd, Dt, Tsv, Status),
+response_for(Cmd, Dt, Qe, Response, FsPrev, FsNext) :-
+    tsv_response_for(Cmd, Dt, Tsv, Status, FsPrev, FsNext),
     phrase(rapdu(3,Tsv,Le,Status), Tmp),
     maplist((is), Response, Tmp),
     le_ok(Qe, Le).
@@ -56,15 +58,15 @@ select(by_path, first, Fid, Path) :- once(abs(Fid, Path)).
 output([]) --> [].
 output([H|T]), [-H] --> output(T).
 
-tsv_response_for(select(aid_prefix,Occurrence,fci), Dt, Fci, completed(ok)) :-
+tsv_response_for(select(aid_prefix,Occurrence,fci), Dt, Fci, completed(ok), Fs, [Fid|Fs]) :-
     append(Dt, _, L),
     select(by_dfname, Occurrence, Fid, L),
     applicable_response(Fid, 0x6F, Fci),
     !.
-tsv_response_for(get_processing_options, _, Gpo, completed(ok)) :-
-    applicable_response(22090, 0x77, Gpo),
+tsv_response_for(get_processing_options, _, Gpo, completed(ok), [Fid|Fs], [Fid|Fs]) :-
+    applicable_response(Fid, 0x77, Gpo),
     !.
-tsv_response_for(_, _, [], error(state_of_nvram(unchanged,no_info))).
+tsv_response_for(_, _, [], error(state_of_nvram(unchanged,no_info)), Fs, Fs).
 
 applicable_response(Fid, Root, X) :-
     all_applicable_nested_non_templates(Fid, Root, [C|Cs]),

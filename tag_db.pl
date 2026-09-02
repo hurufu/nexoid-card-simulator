@@ -12,10 +12,13 @@ tag_property_default(Id, Kernel, Property, Default) :-
         ;   tag_property(Id, Kernel, Property)
     ).
 
-tag_property(Id, Kernel, value(Id)) :- tag_db(Id, _, Kernel, _).
-tag_property(Id, Kernel, length(L)) :- tag_db(Id, _, Kernel, _), L is ceiling(log(Id + 1) / log(2) / 8).
-tag_property(Id, Kernel, name(N)) :- tag_db(Id, _, Kernel, N).
-tag_property(Id, Kernel, spec(S)) :- tag_db(Id, S, Kernel, _).
+tag_property(Id, Kernel, value(Id)) :- tag_db(Id, Kernel, _, _).
+tag_property(Id, Kernel, name(N)) :- tag_db(Id, Kernel, _, N).
+tag_property(Id, Kernel, fmt(F)) :- tag_db(Id, Kernel, F, _).
+tag_property(Id, Kernel, spec(S)) :-
+    tag_spec_db(Id, Kernel, S, _).
+tag_property(Id, Kernel, requested_size(Lower)) :-
+    tag_spec_db(Id, Kernel, element(_,constraint(_,Lower,_)), _).
 
 %% fmt(FormatSpecification)// is multi.
 %
@@ -156,7 +159,7 @@ nesting_applicability(0x77, 0x9F4B).
 nesting_applicability(0x77, 0x9F6C).
 nesting_applicability(0x77, 0x9F6E).
 nesting_applicability(0x80, 0x94).
-nesting_applicability(0xA5, 0x50).
+%nesting_applicability(0xA5, 0x50).
 nesting_applicability(0xA5, 0x9F38).
 nesting_applicability(0xA5, 0xBF0C).
 nesting_applicability(0xBF0C, 0x61).

@@ -20,3 +20,7 @@ w(G_2, A, B) :-
 write_in(T) :- write(-T), nl.
 write_ok(T) :- write(+T), nl.
 write_fi(T) :- write(\T), nl.
+
+format_hex_list(L) :- format_hex_list(user_output, L).
+format_hex_list(Stream, L) :- maplist(format_hex_(Stream), L).
+format_hex_(Stream, I) :- format(Stream, '~|~`0t~16R~2+', [I]).

@@ -1,15 +1,12 @@
-dol([]) --> [].
-dol([H|T]) -->
-    {   tag_db_kernel(K),
-        tag_db(H, Type, K, _),
-        tag_property(H, _, length(1)),
-        phrase(value(Type, _, N), _) }, [H,N], dol(T).
-dol([H|T]) -->
-    {   tag_db_kernel(K),
-        tag_db(H, Type, K, _),
-        tag_property(H, _, length(2)),
-        bytes(2, [A,B], H),
-        phrase(value(Type, _, N), _) }, [A,B,N], dol(T).
+:- initialization(testall(cardut)).
+
+dol(_, []) --> [].
+dol(Kernel, [Tag|Tags]) -->
+    {
+        tag_properties(Tag, Kernel, [requested_size(S)]),
+        once(bytes(_, Bytes, Tag))
+    },
+    Bytes, [S], dol(Kernel, Tags).
 
 % EMV Book 3 table CCD 3
 cryptogram_information_data([0,0,0,0,0,0,0,0], aac).
