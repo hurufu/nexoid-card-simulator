@@ -2,8 +2,6 @@
 :- initialization(testall(tag_db)).
 
 tag_properties_defaults(Id, Kernel, L, D) :- maplist(tag_property_default(Id,Kernel), L, D).
-tag_properties(Id, Kernel, L) :- maplist(tag_property(Id,Kernel), L).
-
 tag_property_default(Id, Kernel, Property, Default) :-
     ground(Default),
     (
@@ -12,13 +10,27 @@ tag_property_default(Id, Kernel, Property, Default) :-
         ;   tag_property(Id, Kernel, Property)
     ).
 
-tag_property(Id, Kernel, value(Id)) :- tag_db(Id, Kernel, _, _).
-tag_property(Id, Kernel, name(N)) :- tag_db(Id, Kernel, _, N).
-tag_property(Id, Kernel, fmt(F)) :- tag_db(Id, Kernel, F, _).
-tag_property(Id, Kernel, spec(S)) :-
-    tag_spec_db(Id, Kernel, S, _).
-tag_property(Id, Kernel, requested_size(Lower)) :-
-    tag_spec_db(Id, Kernel, element(_,constraint(_,Lower,_)), _).
+tag_properties(Id, Kernel, L) :-
+    tag_spec_db(Id, Kernel, Spec, Name, Fmt),
+    tag_property_asn(Id, Class, PC, Numeric),
+    maplist(tag_property_rswitch_(Id,Fmt,Spec,Name,Class,PC,Numeric), L).
+
+tag_property(Id, Kernel, P) :-
+    tag_spec_db(Id, Kernel, Spec, Name, Fmt),
+    tag_property_asn(Id, Class, PC, Numeric),
+    tag_property_switch(P, Id, Fmt, Spec, Name, Class, PC, Numeric).
+
+tag_property_rswitch_(Id, Fmt, Spec, Name, Class, PC, Numeric, Property) :-
+    tag_property_switch(Property, Id, Fmt, Spec, Name, Class, PC, Numeric).
+
+tag_property_switch(value(I),   I, _, _, _, _, _, _).
+tag_property_switch(fmt(F),     _, F, _, _, _, _, _).
+tag_property_switch(spec(S),    _, _, S, _, _, _, _).
+tag_property_switch(dol_size(L),_, _, S, _, _, _, _) :- S = element(_,constraint(_,L,_)).
+tag_property_switch(name(N),    _, _, _, N, _, _, _).
+tag_property_switch(class(C),   _, _, _, _, C, _, _).
+tag_property_switch(pc(P),      _, _, _, _, _, P, _).
+tag_property_switch(numeric(N), _, _, _, _, _, _, N).
 
 %% fmt(FormatSpecification)// is multi.
 %
@@ -60,15 +72,16 @@ fmt_constraint(b,   byte).
 fmt_constraint(a,   byte).
 fmt_constraint(an,  byte).
 fmt_constraint(ans, byte).
+fmt_constraint(var, byte).
+%fmt_constraint(var, _).
 fmt_max_unspec(252, 253).
 %fmt_max_unspec(252, 16).
 %fmt_max_unspec(252, _).
 
-tag_spec_db(T, K, S, N) :-
+tag_spec_db(T, K, S, N, Atom) :-
     tag_db(T, K, Atom, N),
     atom_chars(Atom, Codes),
-    phrase(fmt(S), Codes).
-
+    phrase(fmt(S),Codes). % FIXME: Source of non-determinism
 
 %% tag_db(EmvTag, Spec, ApplicableKernel, Name) is fact.
 %
@@ -95,7 +108,7 @@ tag_db(0x8A,   _, 'an2', "Authorisation Response Code").
 tag_db(0x8C,   _, 'b...252', "Card Risk Management DOL 1").
 tag_db(0x8D,   _, 'b...252', "Card Risk Management DOL 2").
 tag_db(0x8E,   _, 'b...252', "Cardholder Verification Method (CVM) List").
-tag_db(0x94,   _, 'var...252', "Application File Locator (AFL)").
+tag_db(0x94,   _, 'var...252', "Application File Locator (AFL)"). % Type should be s
 tag_db(0x95,   _, 'b5', "Terminal Verification Results (TVR)").
 tag_db(0x9A,   _, 'n6', "Transaction Date").
 tag_db(0x9C,   _, 'n2', "Transaction Type").
@@ -167,55 +180,31 @@ nesting_applicability(0xBF0C, 0x61).
 
 % Tests
 t(tag_db, true, (all_constructed_tags_are_templates :-
-    forall(
-        (
-            tag_spec_db(T,_,S,_),
-            bits(8,[_,_,1|_],T)
-        ),
-        S == template
-    )
+    findall(T, tag_properties(T,_,[spec(template),pc(primitive)]), [])
 )).
 t(tag_db, true, (all_primitive_tags_are_data_elements :-
-    forall(
-        (
-            tag_spec_db(T,_,S,_),
-            bits(8,[_,_,0|_],T)
-        ),
-        S = element(_,_)
-    )
+    findall(T, tag_properties(T,_,[spec(element(_,_)),pc(constructed)]), [])
 )).
 t(tag_db, true, (all_templates_are_constructed :-
-    forall(
-        tag_spec_db(T,_,template,_),
-        (
-            (E=8; E=16; E=24; E=32),
-            bits(E,[_,_,1|_],T)
-        )
-    )
+    findall(T, tag_properties(T,_,[spec(template),pc(primitive)]), [])
 )).
 t(tag_db, true, (all_data_elements_are_primitive :-
-    forall(
-        tag_spec_db(T,_,element(_,_),_),
-        (
-            (E=8; E=16; E=24; E=32),
-            bits(E,[_,_,0|_],T)
-        )
-    )
+    findall(T, tag_properties(T,_,[spec(element(_,_)),pc(constructed)]), [])
 )).
 t(tag_db, true, ('Every tag spec is parseable' :-
-    forall(tag_db(T,K,_,N), (tag_spec_db(T,K,_,N)->true;throw(error(tag(T),_))))
+    forall(tag_db(T,K,_,N), (tag_spec_db(T,K,_,N,_)->true;throw(error(tag(T),_))))
 )).
-t(tag_db, true, ('Only templates can nest other elements' :-
-    forall(nesting_applicability(T,_), tag_spec_db(T,3,template,_))
+t(tag_db, true, ('Only templates can nest other elements with exception of tag 0x80' :-
+    forall((nesting_applicability(T,_),T\==0x80), (tag_property(T,_,spec(template))->true;throw(error(tag(T),_))))
 )).
 t(tag_db, true, ('Every template defines nesting' :-
-    forall(tag_spec_db(T,4,template,_), nesting_applicability(T,_))
+    forall(tag_property(T,_,spec(template)), nesting_applicability(T,_))
 )).
 t(tag_db, true, ('None of the non templates can nest other elements' :-
-    forall(tag_spec_db(T,_,element(_,_),_), (\+nesting_applicability(T,_)->true;throw(error(tag(T),_))))
+    forall(tag_property(T,_,spec(element(_,_))), (\+nesting_applicability(T,_)->true;throw(error(tag(T),_))))
 )).
 t(tag_db, skip, ('Every non-template is nested somewhere' :-
-    forall(tag_spec_db(T,_,element(_,_),_), nesting_applicability(_,T))
+    forall(tag_property(T,_,spec(element(_,_))), nesting_applicability(_,T))
 )).
 t(tag_db, false, ('All format specifiers are enumerable' :-
     phrase(fmt(_), _), fail

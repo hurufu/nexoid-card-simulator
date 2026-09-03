@@ -4,7 +4,7 @@
 :- initialization(testall(emvber)).
 
 ber(K, tsv(T,S,V), BL) --> tag(S, K, T, TL), len(VL, LL), value(S, K, V, VL), { BL is TL + LL + VL }.
-tag(S, K, T, TL) --> { between(1, 4, TL) }, length__(Bs, TL), { bytes(TL, Bs, T), once(tag_spec_db(T, K, S, _)) }.
+tag(S, K, T, TL) --> { between(1, 4, TL) }, length__(Bs, TL), { bytes(TL, Bs, T), once(tag_property(T, K, spec(S))) }. % FIXME: Remove once/1
 len(VL, 1) --> [X], { arith_eq_si(VL, X) }.
 value(element(_,C), _K, V, VL) --> { value_between(C, VL) }, length__(V, VL).
 value(template, K, V, VL) --> value_template(V, VL, K).

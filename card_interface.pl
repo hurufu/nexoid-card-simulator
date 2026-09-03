@@ -8,7 +8,7 @@ absolute_path(16128) --> [16128].
 absolute_path(C) --> { nesting(P,C) }, absolute_path(P), [C].
 dfname(Fid, A) :- fn(Fid, A).
 fid_tag_property(F, 0x84, P) :- fn(F, P).
-fid_tag_property(F, T, P) :- pp(F, T, P).
+fid_tag_property(F, T, P) :- fc(F, _, T, P).
 
 db_consistent :- duplicates, ambiguous_type, ef_hosts_files.
 duplicates :- forall(ft(F, _), findall(X, ft(F,X), [_])).

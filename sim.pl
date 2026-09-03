@@ -78,11 +78,11 @@ all_applicable_nested_non_templates(Fid, Root, Chains) :-
 
 applicable_nested_non_templates(Kernel, Fid, P, C, [tsv(P,template,[tsv(C,element(X,Y),V)|_])|_]) :-
     nesting_applicability(P, C),
-    tag_spec_db(C, Kernel, element(X,Y), _),
-    tag_spec_db(P, Kernel, template, _),
+    tag_property(C, Kernel, spec(element(X,Y))),
+    tag_property(P, Kernel, spec(template)),
     fid_tag_property(Fid, C, V).
 applicable_nested_non_templates(Kernel, Fid, P, C, [tsv(P,template,Y)|_]) :-
-    tag_spec_db(P, Kernel, template, _),
+    tag_property(P, Kernel, spec(template)),
     nesting_applicability(P, X),
     applicable_nested_non_templates(Kernel, Fid, X, C, Y).
 
