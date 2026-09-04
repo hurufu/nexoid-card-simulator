@@ -1,11 +1,17 @@
 :- initialization(testall(asn1_tag)).
 
-%% tag_property_asn(+Int, ?Class, ?PC, ?Numeric).
+%% tag_property_asn(?Int, ?Class, ?PC, ?Numeric).
 %
-% Properties of an ASN.1 tag. Int is a on-the-wire tag value, Numeric is it's
-% ASN.1 value.
 tag_property_asn(Int, Class, PC, Numeric) :-
     tag_property_asn(Int, Class, PC, Numeric, _).
+
+%% tag_property_asn(?Int, ?Class, ?PC, ?Numeric, ?NumberOfBytes).
+%
+% Properties of an ASN.1 tag. Int is a on-the-wire tag value, Numeric is it's
+% ASN.1 value. NumberOfBytes is a length in bytes of Int
+%
+% FIXME: Has bugs with Numeric value computation, see tests at the bottom.
+%
 tag_property_asn(Int, Class, PC, Numeric, NumberOfBytes) :-
     var(Int) ->
         asn1_tag_property_from_numeric(Int, Class, PC, Numeric, NumberOfBytes)
@@ -30,7 +36,7 @@ asn1_tag_property_from_numeric(Int, Class, PC, Numeric, NumberOfBytes) :-
     (
         var(NumberOfBytes) ->
             bits(_, Bits, Numeric)
-        ;   bits(8*NumberOfBytes-3, Bits, Numeric)
+        ;   bits(7*NumberOfBytes, Bits, Numeric)
     ),
     phrase(asn1_tag_bits(Bits), Rest),
     (
@@ -94,4 +100,17 @@ asn1_tag_universal(34, primitive, 'DURATION').
 
 t(asn1_tag, true, ('The most generic query must succeed at least once' :-
      once(tag_property_asn(_, _, _, _, _))
+)).
+
+t(asn1_tag, skip, ('There should exist a universal (31...) tag with 2 bytes length' :-
+    tag_property_asn(_, universal, _, _, 2)
+)).
+
+t(asn1_tag, skip, ('Tag 31 with 2 bytes serialization must exist' :-
+    tag_property_asn(_, universal, _, 31, 2)
+)).
+
+t(asn1_tag, skip, ('Numeric value serialization should find the smallest representation' :-
+    phrase(asn1_tag_bits([0,0,0,0,0,0,0, 0,0,1,1,1,1,1]), A),
+    A == [1,1,1,1,1, 0,0,0,1,1,1,1,1]
 )).
