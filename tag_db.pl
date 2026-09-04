@@ -12,25 +12,27 @@ tag_property_default(Id, Kernel, Property, Default) :-
 
 tag_properties(Id, Kernel, L) :-
     tag_spec_db(Id, Kernel, Spec, Name, Fmt),
-    tag_property_asn(Id, Class, PC, Numeric),
-    maplist(tag_property_rswitch_(Id,Fmt,Spec,Name,Class,PC,Numeric), L).
+    tag_property_asn(Id, Class, PC, Numeric, Length, Bytes),
+    maplist(tag_property_rswitch_(Id,Fmt,Spec,Name,Class,PC,Numeric,Length,Bytes), L).
 
 tag_property(Id, Kernel, P) :-
     tag_spec_db(Id, Kernel, Spec, Name, Fmt),
-    tag_property_asn(Id, Class, PC, Numeric),
-    tag_property_switch(P, Id, Fmt, Spec, Name, Class, PC, Numeric).
+    tag_property_asn(Id, Class, PC, Numeric, Length, Bytes),
+    tag_property_switch(P, Id, Fmt, Spec, Name, Class, PC, Numeric, Length, Bytes).
 
-tag_property_rswitch_(Id, Fmt, Spec, Name, Class, PC, Numeric, Property) :-
-    tag_property_switch(Property, Id, Fmt, Spec, Name, Class, PC, Numeric).
+tag_property_rswitch_(Id, Fmt, Spec, Name, Class, PC, Numeric, Length, Bytes, Property) :-
+    tag_property_switch(Property, Id, Fmt, Spec, Name, Class, PC, Numeric, Length, Bytes).
 
-tag_property_switch(value(I),   I, _, _, _, _, _, _).
-tag_property_switch(fmt(F),     _, F, _, _, _, _, _).
-tag_property_switch(spec(S),    _, _, S, _, _, _, _).
-tag_property_switch(dol_size(L),_, _, S, _, _, _, _) :- S = element(_,constraint(_,L,_)).
-tag_property_switch(name(N),    _, _, _, N, _, _, _).
-tag_property_switch(class(C),   _, _, _, _, C, _, _).
-tag_property_switch(pc(P),      _, _, _, _, _, P, _).
-tag_property_switch(numeric(N), _, _, _, _, _, _, N).
+tag_property_switch(value(I),   I, _, _, _, _, _, _, _, _).
+tag_property_switch(fmt(F),     _, F, _, _, _, _, _, _, _).
+tag_property_switch(spec(S),    _, _, S, _, _, _, _, _, _).
+tag_property_switch(dol_size(L),_, _, S, _, _, _, _, _, _) :- S = element(_,constraint(_,L,_)).
+tag_property_switch(name(N),    _, _, _, N, _, _, _, _, _).
+tag_property_switch(class(C),   _, _, _, _, C, _, _, _, _).
+tag_property_switch(pc(P),      _, _, _, _, _, P, _, _, _).
+tag_property_switch(numeric(N), _, _, _, _, _, _, N, _, _).
+tag_property_switch(length(L),  _, _, _, _, _, _, _, L, _).
+tag_property_switch(bytes(B),   _, _, _, _, _, _, _, _, B).
 
 %% fmt(FormatSpecification)// is multi.
 %
@@ -208,4 +210,7 @@ t(tag_db, skip, ('Every non-template is nested somewhere' :-
 )).
 t(tag_db, false, ('All format specifiers are enumerable' :-
     phrase(fmt(_), _), fail
+)).
+t(tag_db, false, ('Generic, but length-limited query terminates' :-
+    length(P,5), tag_properties(_,_,P), fail
 )).
