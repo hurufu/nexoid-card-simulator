@@ -1,3 +1,5 @@
+% Main entry into card simulator.
+
 main :- main([]).
 
 main(FsPrev) :- phrase(exchange(FsPrev, FsNext), []) -> main(FsNext); true.
