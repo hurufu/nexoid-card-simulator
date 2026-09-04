@@ -7,20 +7,19 @@ LDFLAGS        := -fhardened -Whardened
 PROLOG         := scryer
 GPROLOG_LIBDIR := /usr/share/gprolog/lib
 CARD           := visa
-SOURCES        := $(PROLOG).pl \
-                  $(CARD).pl \
+SOURCES        := $(CARD).pl \
                   debug.pl \
                   test.pl \
                   base2k.pl \
                   dcg_utils.pl \
+                  asn1_tag.pl \
                   tag_db.pl \
                   status_db.pl \
                   tsv_unification.pl \
                   ber.pl \
                   sim.pl \
                   card_utils.pl \
-                  card_interface.pl \
-                  init.pl
+                  card_interface.pl
 
 .PHONY: start clean build start-hce start-int inter check
 
@@ -33,10 +32,10 @@ start-hce: hce | in.fifo out.fifo
 	exec ./$< >in.fifo <out.fifo
 start-sim: sim | in.fifo out.fifo
 	exec ./$<
-start-int: $(SOURCES) | in.fifo out.fifo
+start-int: $(PROLOG).pl $(SOURCES) init.pl | in.fifo out.fifo
 	exec prologs -p $(PROLOG) -g main $^
-check-%: %.pl ut.pl sim.pl $(CARD).pl
-	exec prologs -p $* $^
+check-%: %.pl $(SOURCES) sim.pl $(CARD).pl cdet1.pl
+	exec prologs -g halt -p $* $^
 check: $(filter-out %-init,$(filter-out %-tu,$(addprefix check-,$(patsubst compat/%.pl,%,$(wildcard compat/*.pl)))))
 clean: F := $(wildcard hce sim *.s *.o *.fifo *.wam *.ma *.xwam compat/*.xwam cards/*.xwam)
 clean: F += $(wildcard *.itf *.po compat/*.itf compat/*.po cards/*.itf cards/*.po)
