@@ -12,11 +12,11 @@ SOURCES        := $(CARD).pl \
                   test.pl \
                   base2k.pl \
                   dcg_utils.pl \
-                  asn1_tag.pl \
                   tag_db.pl \
                   status_db.pl \
                   tsv_unification.pl \
                   ber.pl \
+                  capdu.pl \
                   sim.pl \
                   card_utils.pl \
                   card_interface.pl

@@ -1,4 +1,9 @@
-%% Peano arithmetic library
+%% Peano arithmetic library.
+%
+% The idea is to use it for simple constraint satisfaction problems on systems
+% that lack CLP(ℤ) library.
+%
+% Currently isn't used.
 
 eq(nat, 0).
 eq(nat, s(N)) :- eq(nat, N).
