@@ -36,7 +36,7 @@ start-int: $(PROLOG).pl $(SOURCES) init.pl | in.fifo out.fifo
 	exec prologs -p $(PROLOG) -g main $^
 check-%: %.pl $(SOURCES) sim.pl $(CARD).pl cdet1.pl
 	exec prologs -g halt -p $* $^
-check: check-trealla check-swi check-scryer
+check: check-trealla check-swi check-scryer check-tu check-yap
 clean: F := $(wildcard hce sim *.s *.o *.fifo *.wam *.ma *.xwam compat/*.xwam cards/*.xwam)
 clean: F += $(wildcard *.itf *.po compat/*.itf compat/*.po cards/*.itf cards/*.po)
 clean:

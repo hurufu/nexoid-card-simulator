@@ -51,7 +51,7 @@ fmt(false) --> fmt_false.
 fmt(template) --> fmt_template.
 fmt(element(F,constraint(C,L,U))) --> fmt_format(F), { fmt_constraint(F, C), fmt_max_unspec(M, Y) }, fmt_lower_upper(M, Y, L, U).
 fmt_template --> [t].
-fmt_false --> [-].
+fmt_false --> ['-'].
 fmt_format(b) --> [b].
 fmt_format(n) --> [n].
 fmt_format(cn) --> [c,n].
