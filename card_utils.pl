@@ -3,8 +3,7 @@
 dol(_, []) --> [].
 dol(Kernel, [Tag|Tags]) -->
     {
-        tag_properties(Tag, Kernel, [requested_size(S)]),
-        once(bytes(_, Bytes, Tag))
+        tag_properties(Tag, Kernel, [dol_size(S),bytes(Bytes)])
     },
     Bytes, [S], dol(Kernel, Tags).
 

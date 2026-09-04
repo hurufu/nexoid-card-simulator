@@ -97,15 +97,15 @@ t(asn1_tag, true, ('The most generic query must succeed at least once' :-
      once(tag_property_asn(_, _, _, _, _, _))
 )).
 
-t(asn1_tag, skip, ('There should exist a universal (31...) tag with 2 bytes length' :-
+t(asn1_tag, skip, ('There should exist a universal (31...) tag with 2 bytes length (known bug)' :-
     tag_property_asn(_, universal, _, _, 2, _)
 )).
 
-t(asn1_tag, skip, ('Tag 31 with 2 bytes serialization must exist' :-
+t(asn1_tag, skip, ('Tag 31 with 2 bytes serialization must exist (known bug)' :-
     tag_property_asn(_, universal, _, 31, 2, _)
 )).
 
-t(asn1_tag, skip, ('Numeric value serialization should find the smallest representation' :-
+t(asn1_tag, skip, ('Numeric value serialization should find the smallest representation (known bug)' :-
     phrase(asn1_tag_bits([0,0,0,0,0,0,0, 0,0,1,1,1,1,1]), A),
     A == [1,1,1,1,1, 0,0,0,1,1,1,1,1]
 )).

@@ -26,6 +26,7 @@ tag_property_rswitch_(Id, Fmt, Spec, Name, Class, PC, Numeric, Length, Bytes, Pr
 tag_property_switch(value(I),   I, _, _, _, _, _, _, _, _).
 tag_property_switch(fmt(F),     _, F, _, _, _, _, _, _, _).
 tag_property_switch(spec(S),    _, _, S, _, _, _, _, _, _).
+% FIXME: Requestd DOL size must be coded explicitly and not just set to the lower bound
 tag_property_switch(dol_size(L),_, _, S, _, _, _, _, _, _) :- S = element(_,constraint(_,L,_)).
 tag_property_switch(name(N),    _, _, _, N, _, _, _, _, _).
 tag_property_switch(class(C),   _, _, _, _, C, _, _, _, _).
@@ -213,4 +214,7 @@ t(tag_db, false, ('All format specifiers are enumerable' :-
 )).
 t(tag_db, false, ('Generic, but length-limited query terminates' :-
     length(P,5), tag_properties(_,_,P), fail
+)).
+t(tag_db, skip, ('Default value can be used (not implemented)' :-
+    tag_property_default(0x50, _, [dol_size(_),spec(element(_,constraint(_,L,_)))], [dol_size(L)])
 )).
