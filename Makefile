@@ -1,19 +1,62 @@
-.PHONY: clean dump-apdu dump-hex script
+CPPFLAGS       :=
+CFLAGS         := -Wall -Wextra -ggdb3 -Os -pipe
+TARGET_ARCH    := -march=native -mtune=native
+ASFLAGS        :=
+TARGET_MACH    := --64
+LDFLAGS        := -fhardened -Whardened
+PROLOG         := scryer
+GPROLOG_LIBDIR := /usr/share/gprolog/lib
+CARD           := visa
+SOURCES        := $(CARD).pl \
+                  debug.pl \
+                  test.pl \
+                  base2k.pl \
+                  dcg_utils.pl \
+                  tag_db.pl \
+                  status_db.pl \
+                  tsv_unification.pl \
+                  ber.pl \
+                  capdu.pl \
+                  rapdu.pl \
+                  sim.pl \
+                  card_utils.pl \
+                  card_interface.pl
 
-LDLIBS    = $(shell pkg-config --libs libnfc-nci)
-CFLAGS   := -Wall -Wextra -ggdb3 -Og -pthread
+.PHONY: start clean build start-hce start-int inter check
 
-dump-hex: main
-	while sleep 3; do printf '\x6A\x82'; done | ./$< 5000 5 | od -Ad -tx1z
-dump-apdu: main hexpipe apdu
-	while sleep 1; do printf '\x6A\x82'; sleep 1; done | ./$< 5000 5 > apdu
-clean: F := $(wildcard main apdu hexpipe unhexpipe debug *.s)
+vpath %.pl cards compat
+
+build: hce sim
+start: start-hce start-sim
+inter: start-hce start-int
+start-hce: hce | in.fifo out.fifo
+	exec ./$< >in.fifo <out.fifo
+start-sim: sim | in.fifo out.fifo
+	exec ./$<
+start-int: $(PROLOG).pl $(SOURCES) init.pl | in.fifo out.fifo
+	exec prologs -p $(PROLOG) -g main $^
+check-%: %.pl $(SOURCES) sim.pl $(CARD).pl cdet1.pl
+	exec prologs -g halt -p $* $^
+check: check-trealla check-swi check-scryer check-tu check-yap
+clean: F := $(wildcard hce sim *.s *.o *.fifo *.wam *.ma *.xwam compat/*.xwam cards/*.xwam)
+clean: F += $(wildcard *.itf *.po compat/*.itf compat/*.po cards/*.itf cards/*.po)
 clean:
-	-$(if $(strip $F),$(RM) -- $F,)
-apdu debug:
-	mkfifo -- $@
-script: main card.exp debug hexpipe unhexpipe
-	expect -- card.exp sh -c 'stty raw -echo; (./unhexpipe | ./$< 5000 5 | ./hexpipe) 2>debug'
+	$(if $(strip $F),$(RM) -- $F)
 
-%.s: %.c
-	$(CC) -S -Wall -Wextra -g0 -O3 -fno-plt -fno-asynchronous-unwind-tables -o $@ $<
+hce: LDLIBS = $(shell pkg-config --libs libnfc-nci)
+hce: hce.c
+	$(LINK.c) -o $@ $< $(LDLIBS)
+sim: LDLIBS  := $(GPROLOG_LIBDIR)/all_pl_bips.o -lbips_pl -lengine_pl -llinedit -lm
+sim: LDFLAGS += -L$(GPROLOG_LIBDIR)
+sim: gnu-init.o init.o sim.o $(CARD).o gnu.o
+	$(LINK.o) -o $@ $^ $(LDLIBS)
+
+# TODO: Remove ceiling functions
+%.wam: %.pl
+	pl2wam --wam-for-native --fast-math -o $@ $<
+%.ma: %.wam
+	wam2ma -o $@ $<
+%.s: %.ma
+	ma2asm -o $@ $<
+%.fifo:
+	mkfifo -- $@
