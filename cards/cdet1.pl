@@ -13,7 +13,7 @@ cdet(1, select_ppse, [
 ]).
 
 cdet(1, select_payment_application, [
-00,0xa4,0x04,0x00,0x07,0xa0,0x00,0x00,0x00,0x03,0x10,0x10,0x00
+0x00,0xa4,0x04,0x00,0x07,0xa0,0x00,0x00,0x00,0x03,0x10,0x10,0x00
 ],[
 0x6f,0x3e,0x84,0x07,0xa0,0x00,0x00,0x00,0x03,0x10,0x10,0xa5,0x33,
 0x50,0x0b,0x56,0x49,0x53,0x41,0x20,0x43,0x52,0x45,0x44,0x49,0x54,
@@ -110,12 +110,11 @@ t(cdet1, true, ('Select PPSE' :-
     ExpectedRApdu == ActualRApdu
 )).
 
+% TODO: Make it easy to configure exact tags that must be selected
 t(cdet1, true, ('Select payment application' :-
     get_cdet(1, select_payment_application, cmd(Cmd,Dt,Qe), ExpectedRApdu),
     once(response_for(Cmd, Dt, Qe, ActualRApdu, [28677], Fs)), % FIXME: Remove once/1
     Fs == [22090,28677],
-    format_hex_list(ExpectedRApdu),nl,
-    format_hex_list(ActualRApdu),nl,
     ExpectedRApdu == ActualRApdu
 )).
 
@@ -123,12 +122,3 @@ get_cdet(CardId, Name, cmd(Cmd,Dt,Qe), ExpectedRApdu) :-
     cdet(CardId, Name, CApdu, ExpectedRApdu),
     phrase(nbytes(CApdu,_), Input),
     phrase(command(Cmd,Dt,Qe), Input).
-
-runme(Fs, actual(AcRApdu)) :-
-    get_cdet(1, select_ppse, cmd(Cmd,Dt,Qe), ExpectedRApdu),
-    tsv_response_for(Cmd, Dt, Tsv, Status, [], Fs),
-    phrase(rapdu(3,Tsv,Le,Status), Tmp),
-    maplist((is), AcRApdu, Tmp),
-    le_ok(Qe, Le),
-    format_hex_list(ExpectedRApdu),nl,
-    format_hex_list(AcRApdu),nl.

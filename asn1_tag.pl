@@ -1,18 +1,18 @@
 :- initialization(testall(asn1_tag)).
 
-%% tag_property_asn(?Int, ?Class, ?PC, ?Numeric, ?NumberOfBytes, ?Bytes).
+%% tag_property_asn(?Int, ?Class, ?PC, ?Numeric, ?NumberOfBytes).
 %
 % Properties of an ASN.1 tag. Int is a on-the-wire tag value, Numeric is it's
 % ASN.1 value. NumberOfBytes is a length in bytes of Int
 %
 % FIXME: Has bugs with Numeric value computation, see tests at the bottom.
 %
-tag_property_asn(Int, Class, PC, Numeric, NumberOfBytes, Bytes) :-
+tag_property_asn(Int, Class, PC, Numeric, NumberOfBytes) :-
     var(Int) ->
-        asn1_tag_property_from_numeric(Int, Class, PC, Numeric, NumberOfBytes, Bytes)
-    ;   asn1_tag_property_from_int(Int, Class, PC, Numeric, NumberOfBytes, Bytes).
+        asn1_tag_property_from_numeric(Int, Class, PC, Numeric, NumberOfBytes)
+    ;   asn1_tag_property_from_int(Int, Class, PC, Numeric, NumberOfBytes).
 
-asn1_tag_property_from_int(Int, Class, PC, Numeric, NumberOfBytes, [A,B,C|Rest]) :-
+asn1_tag_property_from_int(Int, Class, PC, Numeric, NumberOfBytes) :-
     pow2_required_digits(8, Int, NumberOfBytes),
     bits(8*NumberOfBytes, [A,B,C|Rest], Int),
     asn1_tag_pc(C, PC),
@@ -20,7 +20,7 @@ asn1_tag_property_from_int(Int, Class, PC, Numeric, NumberOfBytes, [A,B,C|Rest])
     bits(_, Bits, Numeric),
     asn1_tag_class(A, B, Class).
 
-asn1_tag_property_from_numeric(Int, Class, PC, Numeric, NumberOfBytes, [A,B,C|Rest]) :-
+asn1_tag_property_from_numeric(Int, Class, PC, Numeric, NumberOfBytes) :-
     asn1_tag_class(A, B, Class),
     asn1_tag_pc(C, PC),
     (
@@ -94,15 +94,15 @@ asn1_tag_universal(33, primitive, 'DATE-TIME').
 asn1_tag_universal(34, primitive, 'DURATION').
 
 t(asn1_tag, true, ('The most generic query must succeed at least once' :-
-     once(tag_property_asn(_, _, _, _, _, _))
+     once(tag_property_asn(_, _, _, _, _))
 )).
 
 t(asn1_tag, skip, ('There should exist a universal (31...) tag with 2 bytes length (known bug)' :-
-    tag_property_asn(_, universal, _, _, 2, _)
+    tag_property_asn(_, universal, _, _, 2)
 )).
 
 t(asn1_tag, skip, ('Tag 31 with 2 bytes serialization must exist (known bug)' :-
-    tag_property_asn(_, universal, _, 31, 2, _)
+    tag_property_asn(_, universal, _, 31, 2)
 )).
 
 t(asn1_tag, skip, ('Numeric value serialization should find the smallest representation (known bug)' :-
