@@ -1,3 +1,5 @@
+% DCG utils.
+
 :- meta_predicate(foldl__(5,?,?,?,?,?)).
 %% foldl__(G__3, L1, V0, Vlast)//
 %

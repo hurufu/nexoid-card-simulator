@@ -1,3 +1,5 @@
+% Status word database.
+
 :- initialization(testall(status_db)).
 
 sw_db_extended(Sw1, Sw2, Status) :- sw_db(Sw1, Sw2, Status).

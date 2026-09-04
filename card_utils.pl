@@ -1,3 +1,5 @@
+% Assorted utils expected to be called by card/*.pl files
+
 :- initialization(testall(cardut)).
 
 dol(_, []) --> [].
