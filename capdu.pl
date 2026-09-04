@@ -1,3 +1,5 @@
+% Everything related to C-APDU (commands).
+
 :- initialization(testall(capdu)).
 
 command(Cmd, Dt, Qe) --> hdr(Cmd, Qc, Qe), lc(Qc), cmd(Qc, Dt), le(Qc, Qe).

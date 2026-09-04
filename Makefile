@@ -17,6 +17,7 @@ SOURCES        := $(CARD).pl \
                   tsv_unification.pl \
                   ber.pl \
                   capdu.pl \
+                  rapdu.pl \
                   sim.pl \
                   card_utils.pl \
                   card_interface.pl
