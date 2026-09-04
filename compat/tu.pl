@@ -75,3 +75,7 @@ call(G_5, A1, A2, A3, A4, A5) :- call_list(G_5, [A1,A2,A3,A4,A5]).
 
 :- meta_predicate(setup_call_cleanup(0,0,0)).
 setup_call_cleanup(S_0, G_0, C_0) :- S_0 -> call_cleanup(G_0, C_0).
+
+nth1(Index, List, Element) :-
+    X =.. [f|List],
+    arg(Index, X, Element).
