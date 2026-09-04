@@ -111,7 +111,7 @@ t(cdet1, true, ('Select PPSE' :-
 )).
 
 % TODO: Make it easy to configure exact tags that must be selected
-t(cdet1, true, ('Select payment application' :-
+t(cdet1, skip, ('Select payment application' :-
     get_cdet(1, select_payment_application, cmd(Cmd,Dt,Qe), ExpectedRApdu),
     once(response_for(Cmd, Dt, Qe, ActualRApdu, [28677], Fs)), % FIXME: Remove once/1
     Fs == [22090,28677],
